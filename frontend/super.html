@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Broker - Super Admin</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+    />
+    <style>
+      .card-metric {
+        border-left: 5px solid #0d6efd;
+        transition: transform 0.2s;
+      }
+      .card-metric:hover {
+        transform: translateY(-5px);
+      }
+    </style>
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">👾 Super Admin SaaS</a>
+        <button class="btn btn-outline-light btn-sm" onclick="logout()">Sair</button>
+      </div>
+    </nav>
+
+    <div class="container mt-4">
+      <div class="row mb-4">
+        <div class="col-md-4">
+          <div class="card card-metric bg-white border-0 shadow-sm p-3">
+            <h6 class="text-muted">Tenants Ativos</h6>
+            <h2 id="metricTenants">...</h2>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div
+            class="card card-metric bg-white border-0 shadow-sm p-3"
+            style="border-left-color: #198754"
+          >
+            <h6 class="text-muted">Total Usuários</h6>
+            <h2 id="metricUsers">...</h2>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div
+            class="card card-metric bg-white border-0 shadow-sm p-3"
+            style="border-left-color: #ffc107"
+          >
+            <h6 class="text-muted">Mensagens Processadas</h6>
+            <h2 id="metricMessages">...</h2>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4>Gerenciamento de Clientes (Tenants)</h4>
+        <button class="btn btn-primary" onclick="openNewTenantModal()">
+          <i class="bi bi-plus-lg"></i> Novo Cliente
+        </button>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nome</th>
+              <th>Slug</th>
+              <th>Plano</th>
+              <th>Usuários</th>
+              <th>Msg Count</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tenantList"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal fade" id="newTenantModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Novo Cliente</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="newTenantForm" onsubmit="createTenant(event)">
+              <div class="mb-3">
+                <label class="form-label">Nome da Empresa</label>
+                <input type="text" class="form-control" id="tName" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Slug (URL)</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="tSlug"
+                  required
+                  placeholder="ex: empresa-xy"
+                />
+                <small class="text-muted">Identificador único</small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Plano</label>
+                <select class="form-select" id="tPlan">
+                  <option value="free">Free</option>
+                  <option value="pro">Pro</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <hr />
+              <h6>Criar Usuário Administrador</h6>
+              <div class="mb-3">
+                <label class="form-label">Email Admin</label>
+                <input type="email" class="form-control" id="tEmail" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Senha Inicial</label>
+                <input
+                  type="password"
+                  class="form-control"
+                  id="tPassword"
+                  required
+                  placeholder="Mínimo 8 caracteres"
+                />
+              </div>
+
+              <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">Criar Cliente</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="tenantDetailsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Gestão do Cliente: <span id="detName">...</span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="metricsLoader" class="text-center p-5">
+              <div class="spinner-border text-primary" role="status"></div>
+            </div>
+
+            <div id="metricsContent" style="display: none">
+              <div class="row mb-3 text-center">
+                <div class="col-4">
+                  <div class="p-3 bg-light rounded">
+                    <h3 id="statMsgSent">0</h3>
+                    <small>Enviadas (Mês)</small>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="p-3 bg-light rounded">
+                    <h3 id="statMsgRecv">0</h3>
+                    <small>Recebidas (Mês)</small>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="p-3 bg-light rounded">
+                    <h3 id="statUsers">0</h3>
+                    <small>Usuários Totais</small>
+                  </div>
+                </div>
+              </div>
+
+              <hr />
+
+              <div class="row g-3 items-center">
+                <div class="col-md-6">
+                  <h6 class="text-primary mb-3">
+                    <i class="bi bi-coin"></i> Configuração de Cobrança
+                  </h6>
+                  <div class="mb-2">
+                    <label>Custo por Mensagem (Enviada)</label>
+                    <div class="input-group">
+                      <span class="input-group-text">R$</span>
+                      <input type="number" step="0.001" class="form-control" id="confCostMsg" />
+                    </div>
+                  </div>
+                  <div class="mb-2">
+                    <label>Custo por Usuário/Mês</label>
+                    <div class="input-group">
+                      <span class="input-group-text">R$</span>
+                      <input type="number" step="0.01" class="form-control" id="confCostUser" />
+                    </div>
+                  </div>
+                  <button class="btn btn-success w-100 mt-2" onclick="saveTenantBilling()">
+                    Salvar Valores
+                  </button>
+                </div>
+
+                <div class="col-md-6">
+                  <div class="card bg-dark text-white h-100">
+                    <div class="card-body d-flex flex-column justify-content-center text-center">
+                      <h6>Fatura Estimada (Mês Atual)</h6>
+                      <h1 class="display-4 text-warning fw-bold" id="statBillTotal">R$ 0,00</h1>
+                      <small class="text-white-50">*Calculado com base no uso atual</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+      const API_URL = '/api/super';
+
+      function getAuthHeaders() {
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/login.html';
+        return {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        };
+      }
+
+      async function loadMetrics() {
+        try {
+          const res = await fetch(`${API_URL}/metrics`, { headers: getAuthHeaders() });
+          if (res.status === 403) {
+            alert('Acesso Negado');
+            window.location.href = '/login.html';
+            return;
+          }
+          const data = await res.json();
+          document.getElementById('metricTenants').innerText = data.overview.totalTenants || 0;
+          document.getElementById('metricUsers').innerText = data.overview.totalUsers || 0;
+          document.getElementById('metricMessages').innerText = data.overview.totalMessagesOut || 0;
+        } catch (e) {
+          console.error('Erro ao carregar métricas:', e);
+          document.getElementById('metricTenants').innerText = 'Erro';
+          document.getElementById('metricUsers').innerText = 'Erro';
+          document.getElementById('metricMessages').innerText = 'Erro';
+        }
+      }
+
+      async function loadTenants() {
+        const list = document.getElementById('tenantList');
+        list.innerHTML = '<tr><td colspan="7" class="text-center">Carregando...</td></tr>';
+        try {
+          const res = await fetch(`${API_URL}/tenants`, { headers: getAuthHeaders() });
+          const data = await res.json();
+
+          list.innerHTML = '';
+          data.forEach((t) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                        <td>${escapeHtml(t.name)}</td>
+                        <td><span class="badge bg-light text-dark font-monospace">${escapeHtml(t.slug)}</span></td>
+                        <td>${escapeHtml(t.plan.toUpperCase())}</td>
+                        <td>${t._count?.users || 0}</td>
+                        <td>${t._count?.conversations || 0}</td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" ${t.active ? 'checked' : ''} onchange="toggleStatus('${t.id}', this.checked)">
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="openTenantDetails('${t.id}')"><i class="bi bi-graph-up"></i> Detalhes</button>
+                        </td>
+                    `;
+            list.appendChild(tr);
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      let currentTenantId = null;
+
+      async function openTenantDetails(id) {
+        currentTenantId = id;
+        const modal = new bootstrap.Modal(document.getElementById('tenantDetailsModal'));
+        modal.show();
+        loadTenantAnalytics(id);
+      }
+
+      async function loadTenantAnalytics(id) {
+        document.getElementById('metricsLoader').style.display = 'block';
+        document.getElementById('metricsContent').style.display = 'none';
+
+        try {
+          const res = await fetch(`${API_URL}/tenants/${id}/analytics`, {
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+
+          document.getElementById('detName').innerText = data.tenant.name;
+
+          document.getElementById('confCostMsg').value = data.financial.costPerMessage;
+          document.getElementById('confCostUser').value = data.financial.costPerUser;
+
+          document.getElementById('statMsgSent').innerText = data.usage.messages.sent;
+          document.getElementById('statMsgRecv').innerText = data.usage.messages.received;
+          document.getElementById('statUsers').innerText = data.usage.users.total;
+
+          const total = data.financial.totalEstimated.toFixed(2);
+          document.getElementById('statBillTotal').innerText = `R$ ${total}`;
+
+          document.getElementById('metricsLoader').style.display = 'none';
+          document.getElementById('metricsContent').style.display = 'block';
+        } catch (e) {
+          console.error(e);
+          Swal.fire('Erro', 'Falha ao carregar métricas', 'error');
+        }
+      }
+
+      async function saveTenantBilling() {
+        const costPerMessage = document.getElementById('confCostMsg').value;
+        const costPerUser = document.getElementById('confCostUser').value;
+
+        try {
+          const res = await fetch(`${API_URL}/tenants/${currentTenantId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ costPerMessage, costPerUser })
+          });
+
+          if (res.ok) {
+            Swal.fire('Salvo', 'Configurações atualizadas', 'success');
+            loadTenantAnalytics(currentTenantId);
+          } else {
+            Swal.fire('Erro', 'Falha ao salvar', 'error');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      function openNewTenantModal() {
+        new bootstrap.Modal(document.getElementById('newTenantModal')).show();
+      }
+
+      async function createTenant(e) {
+        e.preventDefault();
+        const payload = {
+          name: document.getElementById('tName').value,
+          slug: document.getElementById('tSlug').value,
+          plan: document.getElementById('tPlan').value,
+          email: document.getElementById('tEmail').value,
+          password: document.getElementById('tPassword').value
+        };
+
+        try {
+          const res = await fetch(`${API_URL}/tenants`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            Swal.fire('Sucesso', 'Cliente criado!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('newTenantModal')).hide();
+            loadTenants();
+            loadMetrics();
+          } else {
+            const err = await res.json();
+            Swal.fire('Erro', err.error, 'error');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      async function toggleStatus(id, active) {
+        try {
+          await fetch(`${API_URL}/tenants/${id}/status`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ active })
+          });
+          const toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1500
+          });
+          toast.fire({ icon: 'success', title: 'Status atualizado' });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      function logout() {
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+      }
+
+      loadMetrics();
+      loadTenants();
+    </script>
+    <script src="js/security.js"></script>
+  </body>
+</html>

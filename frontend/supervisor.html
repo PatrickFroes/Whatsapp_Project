@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesa de Controle - Supervisor</title>
+
+    <!-- CSS Dependencies -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        background-color: #f0f2f5;
+        font-family: 'Segoe UI', sans-serif;
+      }
+
+      .role-badge {
+        background: #6f42c1;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        font-weight: bold;
+      }
+
+      .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        text-align: center;
+      }
+      .stat-card h2 {
+        margin: 0;
+        font-weight: bold;
+      }
+
+      .monitor-row {
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .monitor-row:hover {
+        background: #e9ecef;
+      }
+
+      .live-chat-preview {
+        background: #fff;
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+      }
+      .live-chat-preview:hover {
+        transform: translateY(-2px);
+        transition: all 0.2s;
+      }
+    </style>
+  </head>
+  <body onload="initSupervisor()">
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark bg-secondary px-3">
+      <a class="navbar-brand" href="#"> <i class="bi bi-eye-fill"></i> Mesa de Supervisão </a>
+      <div class="d-flex align-items-center gap-3">
+        <span class="text-white small" id="supervisorName">...</span>
+        <span class="role-badge">SUPERVISOR</span>
+        <button class="btn btn-outline-light btn-sm" onclick="logout()">Sair</button>
+      </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+      <!-- KPIs da Equipe -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="stat-card" style="border-bottom: 4px solid #198754">
+            <h2 class="text-success" id="statOnline">0</h2>
+            <span class="text-muted">Agentes Online</span>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card" style="border-bottom: 4px solid #dc3545">
+            <h2 class="text-danger" id="statBusy">0</h2>
+            <span class="text-muted">Em Atendimento</span>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card" style="border-bottom: 4px solid #6c757d">
+            <h2 class="text-secondary" id="statOffline">0</h2>
+            <span class="text-muted">Offline</span>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card" style="border-bottom: 4px solid #0d6efd">
+            <h2 class="text-primary" id="statQueued">0</h2>
+            <span class="text-muted">Fila de espera</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Coluna da Esquerda: Gestão de Agentes -->
+        <div class="col-md-4">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-bold">
+              <i class="bi bi-people"></i> Equipe em Tempo Real
+              <button
+                class="btn btn-sm btn-link float-end text-decoration-none"
+                onclick="loadTeam()"
+              >
+                Atualizar
+              </button>
+            </div>
+            <div class="card-body p-0">
+              <ul class="list-group list-group-flush" id="agentList">
+                <!-- Populated via JS -->
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Coluna da Direita: Espionagem (Big Brother) & Histórico -->
+        <div class="col-md-8">
+          <ul class="nav nav-tabs mb-3" id="superTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="live-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#live-pane"
+                type="button"
+                role="tab"
+              >
+                Em Atendimento (Ao Vivo)
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="history-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#history-pane"
+                type="button"
+                role="tab"
+                onclick="loadHistory()"
+              >
+                Histórico Recente
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- LIVE PANE -->
+            <div class="tab-pane fade show active" id="live-pane" role="tabpanel">
+              <div class="card shadow-sm border-0 h-100">
+                <div
+                  class="card-body bg-light overflow-auto"
+                  id="liveChatsList"
+                  style="max-height: 600px"
+                >
+                  <div class="text-center py-5 text-muted">Carregando atendimentos...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- HISTORY PANE -->
+            <div class="tab-pane fade" id="history-pane" role="tabpanel">
+              <div class="card shadow-sm border-0 h-100">
+                <!-- 
+                            <div class="card-header bg-white">
+                                <input type="text" class="form-control form-control-sm" id="searchHistory" placeholder="Buscar por número ou nome..." onkeyup="filterHistory()">
+                            </div>
+                            -->
+                <div class="card-body overflow-auto" id="historyList" style="max-height: 550px">
+                  <div class="text-center py-5 text-muted">
+                    Clique em "Histórico Recente" para carregar.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPY / HISTORY MODAL -->
+    <div class="modal fade" id="spyModal" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title" id="spyModalLabel">Visualizador</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div
+            class="modal-body bg-secondary bg-opacity-10"
+            id="spyModalBody"
+            style="height: 500px; overflow-y: auto"
+          >
+            <!-- Messages go here -->
+          </div>
+          <div class="modal-footer">
+            <small class="text-muted w-100 text-center"
+              >* Modo Visualização (Apenas Leitura) *</small
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="js/supervisor.js"></script>
+  </body>
+</html>

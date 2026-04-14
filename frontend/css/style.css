@@ -1,0 +1,140 @@
+body {
+  background-color: #d1d7db;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+/* Chat Items in Sidebar */
+.chat-item {
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #f0f2f5;
+  background: white;
+}
+.chat-item:hover {
+  background-color: #f5f6f6;
+}
+.chat-item.active {
+  background-color: #f0f2f5;
+  border-left: 4px solid #198754;
+}
+
+/* Message Bubbles */
+.message-bubble {
+  max-width: 65%;
+  padding: 8px 12px;
+  border-radius: 7.5px;
+  position: relative;
+  font-size: 14.2px;
+  line-height: 19px;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+  margin-bottom: 8px;
+  word-wrap: break-word;
+}
+
+.message-in {
+  background-color: #ffffff;
+  align-self: flex-start;
+  border-top-left-radius: 0;
+}
+
+.message-out {
+  background-color: #d9fdd3;
+  align-self: flex-end;
+  border-top-right-radius: 0;
+}
+
+.message-meta {
+  float: right;
+  margin-left: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #667781;
+}
+
+.system-message {
+  background: rgba(225, 245, 254, 0.9);
+  color: #444;
+  font-size: 0.8rem;
+  padding: 5px 15px;
+  border-radius: 12px;
+  align-self: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  margin: 10px 0;
+  text-align: center;
+}
+
+/* Layout Utilities */
+.h-100-vh {
+  min-height: 100vh;
+}
+.bg-whatsapp-wall {
+  background-color: #efeae2;
+  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+  background-repeat: repeat;
+}
+
+.log-entry {
+  margin-bottom: 5px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 2px;
+}
+
+.log-time {
+  color: #888;
+  margin-right: 10px;
+}
+
+.log-info {
+  color: #5bc0de;
+}
+.log-success {
+  color: #5cb85c;
+}
+.log-error {
+  color: #d9534f;
+}
+
+/* History Panel Styles */
+.session-card:hover {
+  background-color: #f8f9fa;
+}
+
+.session-card.border-success {
+  border-width: 2px !important;
+}
+
+/* Mobile Responsive: Hide chat list when chat is active */
+@media (max-width: 767.98px) {
+  /* Por padrão, mostrar lista e esconder chat */
+  #chatListSidebar {
+    display: flex !important;
+  }
+
+  #chatArea {
+    display: none !important;
+  }
+
+  /* Quando chat está ativo, esconder lista e mostrar chat */
+  body.chat-active #chatListSidebar {
+    display: none !important;
+  }
+
+  body.chat-active #chatArea {
+    display: flex !important;
+  }
+}

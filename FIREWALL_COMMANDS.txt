@@ -1,0 +1,53 @@
+COMANDOS PARA LIBERAR IPs DO META NO FIREWALL
+==============================================
+
+PRIMEIRO: Descubra qual firewall você tem
+
+comando 1:
+sudo firewall-cmd --version
+
+Se der erro, tente:
+sudo ufw version
+
+
+SE TIVER FIREWALLD (CentOS/RHEL):
+
+Execute estes 4 comandos:
+
+1:
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="31.13.64.0/18" port protocol="tcp" port="443" accept'
+
+2:
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="31.13.128.0/17" port protocol="tcp" port="443" accept'
+
+3:
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="31.13.192.0/18" port protocol="tcp" port="443" accept'
+
+4:
+sudo firewall-cmd --reload
+
+
+SE TIVER UFW (Ubuntu/Debian):
+
+Execute estes 4 comandos:
+
+1:
+sudo ufw allow from 31.13.64.0/18 to any port 443
+
+2:
+sudo ufw allow from 31.13.128.0/17 to any port 443
+
+3:
+sudo ufw allow from 31.13.192.0/18 to any port 443
+
+4:
+sudo ufw reload
+
+
+VERIFICAR SE FUNCIONOU:
+
+Se firewalld:
+sudo firewall-cmd --list-all
+
+Se ufw:
+sudo ufw status verbose

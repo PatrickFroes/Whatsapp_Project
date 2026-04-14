@@ -1,0 +1,45 @@
+RESETAR SENHA DE USUÁRIO ADMIN
+===============================
+
+OPÇÃO 1 - VIA TERMINAL (MAIS RÁPIDO):
+
+1. No seu PC, copie o script para o servidor:
+scp -P 22 "c:\Users\Striker\Documents\Broker\reset-user-password.js" amberfy-test@172.233.26.198:~/Broker/Broker/
+
+2. No servidor, execute:
+cd ~/Broker/Broker
+docker compose cp reset-user-password.js broker_app:/app/
+docker compose exec -T broker_app node /app/reset-user-password.js admin@empresa.com NovaSenh@123
+
+Substitua:
+- admin@empresa.com → email do usuário que quer resetar
+- NovaSenh@123 → nova senha
+
+
+OPÇÃO 2 - VIA PAINEL ADMIN:
+
+1. Acesse: https://broker.amber.com.br/admin.html
+2. Login com super@amber.com / Test1234
+3. Vá em "Usuários"
+4. Procure o usuário
+5. Clique "Resetar Senha"
+
+
+OPÇÃO 3 - VIA PGADMIN (BANCO DE DADOS):
+
+1. Acesse pgAdmin: https://broker.amber.com.br/pgadmin
+2. Email: pgadmin@broker.amber.com.br
+3. Senha: ChangeMeToPgAdminPassword789!@#
+
+4. Navegue: Servers → whatsapp_broker → Databases → whatsapp_broker → Schemas → public → Tables → User
+
+5. Click direito em "User" → View/Edit Data → All Rows
+
+6. Procure o usuário e clique para editar
+
+7. PROBLEMA: O campo "password" é hasheado, não pode editar diretamente
+   Você precisaria de um hash bcrypt válido
+
+
+RECOMENDAÇÃO:
+Use a OPÇÃO 1 (Terminal) - é mais rápido e seguro!

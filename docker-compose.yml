@@ -1,0 +1,85 @@
+services:
+  # Aplicação Node.js
+  broker_app:
+    image: broker-app:latest
+    container_name: broker_app
+    restart: always
+    environment:
+      PORT: 3001
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET}
+      VERIFY_TOKEN: ${VERIFY_TOKEN}
+      PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      LOGIN_RATE_LIMIT_WINDOW_MINUTES: ${LOGIN_RATE_LIMIT_WINDOW_MINUTES:-5}
+      LOGIN_RATE_LIMIT_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:-5}
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "3001:3001"
+    networks:
+      - broker_default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Banco de Dados Principal (Relacional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: broker_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - broker_default
+
+  # Cache & Sessões & Filas
+  redis:
+    image: redis:7-alpine
+    container_name: broker_redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - broker_default
+
+  # UI de Administração do Banco (Opcional - mas útil)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: broker_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-pgadmin@broker.amber.com.br}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-ChangeMeToPgAdminPassword789!@#}
+    ports:
+      - '8080:80'
+    depends_on:
+      - postgres
+    networks:
+      - broker_default
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  broker_default:
+    driver: bridge
+

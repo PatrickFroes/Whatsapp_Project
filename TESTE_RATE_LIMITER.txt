@@ -1,0 +1,74 @@
+TESTE DO NOVO RATE LIMITER DE LOGIN
+====================================
+
+IMPORTANTE: Este teste DEVE ser feito do MESMO computador, MESMO navegador, SEM VPN/Proxy
+
+PASSO 1 - Limpar cache e cookies
+=================================
+1. Abra https://broker.amber.com.br/admin.html
+2. Pressione Ctrl+Shift+Delete (limpar dados de navegação)
+3. Selecione "Todos os tempos"
+4. Marque "Cookies e dados de sites"
+5. Clique "Deletar dados"
+6. Feche TODAS as abas
+
+PASSO 2 - Testar bloqueio de senha errada
+===========================================
+1. Abra https://broker.amber.com.br/admin.html
+2. Tente fazer login com:
+   Email: super@amber.com
+   Senha: ERRADA123 (propositamente errada)
+
+3. Clique "Entrar"
+4. Você receberá: "Credenciais inválidas"
+5. Repita os passos 2-3 até 5 vezes (5 tentativas)
+
+Na 6ª tentativa, você DEVE receber:
+"Muitas tentativas de login. Tente novamente mais tarde."
+
+PASSO 3 - Testar limpeza de tentativas após sucesso
+====================================================
+1. Aguarde 5 minutos OU reinicie o navegador completamente
+2. Abra https://broker.amber.com.br/admin.html
+3. Faça login com a senha CORRETA:
+   Email: super@amber.com
+   Senha: Test1234
+
+4. Login DEVE funcionar
+5. Você será redirecionado para /super.html
+
+PASSO 4 - Testar contador reiniciado
+=====================================
+1. Faça logout: clique seu email no canto superior direito → Logout
+2. Volte para https://broker.amber.com.br/admin.html
+3. Tente senha errada NOVAMENTE (deve contar como 1, não como 6)
+
+VERIFICAR LOGS:
+===============
+No servidor, execute:
+docker compose logs -f broker_app | grep -iE "(LOGIN|tentativa)"
+
+Você deve ver mensagens como:
+[LOGIN FALHA] super@amber.com - Tentativa 1/5
+[LOGIN FALHA] super@amber.com - Tentativa 2/5
+...
+[LOGIN BLOQUEADO] super@amber.com - Tentativas excedidas
+[LOGIN SUCESSO] super@amber.com - Tentativas limpas
+
+
+SE NÃO FUNCIONAR:
+==================
+1. Verifique se fez o redeployment:
+   - Copiou os 3 arquivos
+   - Reiniciou o container
+
+2. Verifique se está usando o MESMO device:
+   - Sem VPN/Proxy
+   - Sem modo privado
+   - Mesmo navegador
+
+3. Teste em Navegação Privada:
+   - Ctrl+Shift+N (Chrome/Edge)
+   - Cmd+Shift+N (Mac)
+   - Ctrl+Shift+P (Firefox)
+   - Isso garante um device ID "limpo"

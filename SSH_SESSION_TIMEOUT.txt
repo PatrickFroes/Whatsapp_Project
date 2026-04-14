@@ -1,0 +1,88 @@
+AUMENTAR TEMPO DE SESSÃO SSH
+=============================
+
+O timeout está acontecendo porque o servidor SSH está fechando conexões inativas.
+
+SOLUÇÃO 1 - AUMENTAR TIMEOUT NO SERVIDOR (permanente)
+======================================================
+
+1. Conecte ao servidor SSH:
+ssh -p 22 amberfy-test@172.233.26.198
+
+2. Edite o arquivo de configuração SSH:
+sudo nano /etc/ssh/sshd_config
+
+3. Procure por estas linhas (ou adicione se não existirem):
+#ClientAliveInterval 300
+#ClientAliveCountMax 3
+
+4. Descomente e altere para:
+ClientAliveInterval 3600
+ClientAliveCountMax 10
+
+Explicação:
+- ClientAliveInterval: Envia um "keepalive" a cada 3600 segundos (1 hora)
+- ClientAliveCountMax: Permite 10 tentativas falhadas antes de desconectar
+
+5. Salve (Ctrl+X, depois Y, depois Enter)
+
+6. Reinicie o SSH:
+sudo systemctl restart sshd
+
+7. Verifique se funcionou:
+sudo systemctl status sshd
+
+
+SOLUÇÃO 2 - NO SEU PC (sem alterar servidor)
+==============================================
+
+Configure seu cliente SSH para manter a conexão viva.
+
+Arquivo: ~/.ssh/config (criar se não existir)
+
+Adicione:
+
+Host 172.233.26.198
+    User amberfy-test
+    Port 22
+    ServerAliveInterval 300
+    ServerAliveCountMax 10
+    TCPKeepAlive yes
+
+Depois conecte normalmente:
+ssh 172.233.26.198
+
+
+VALORES RECOMENDADOS
+====================
+
+Para desenvolvimento (nunca desconectar):
+ClientAliveInterval 7200
+ClientAliveCountMax 100
+
+Para produção (desconectar após 1 dia de inatividade):
+ClientAliveInterval 3600
+ClientAliveCountMax 24
+
+Para teste rápido (desconectar após 10 minutos de inatividade):
+ClientAliveInterval 600
+ClientAliveCountMax 1
+
+
+TESTE RÁPIDO (sem reiniciar SSH)
+================================
+
+Se quer testar, execute estes comandos:
+
+ssh -o ServerAliveInterval=300 -o ServerAliveCountMax=10 amberfy-test@172.233.26.198
+
+Isso vai manter a sessão aberta por 50 minutos (300s * 10 = 3000s)
+
+
+VERIFICAR TIMEOUT ATUAL
+=======================
+
+No servidor, execute:
+sudo sshd -T | grep clientalive
+
+Você verá as configurações atuais

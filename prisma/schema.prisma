@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id            String         @id @default(uuid())
+  name          String
+  slug          String         @unique
+  plan          String         @default("free")
+  active        Boolean        @default(true)
+  
+  // Billing Config
+  costPerMessage Float         @default(0.0) // Custo por mensagem enviada (OUT)
+  costPerUser    Float         @default(0.0) // Custo por usuário cadastrado/mês
+  currency       String        @default("BRL")
+
+  waPhoneId     String?
+  waBusinessId  String?
+  waAccessToken String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  flows         Json?
+  pauseReasons  Json?
+  
+  // Business Hours Config
+  businessHours Json?          // { enabled, schedule: { monday: { start: "09:00", end: "18:00" } }, timezone: "America/Sao_Paulo", offlineMessage: "..." }
+  
+  contacts      Contact[]
+  conversations Conversation[]
+  skills        Skill[]
+  templates     Template[]
+  users         User[]
+  tags          Tag[]
+  campaigns     Campaign[]
+  wallet        Wallet?
+  quickReplies  QuickReply[]
+  configuration Configuration?
+}
+
+model User {
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  password              String
+  name                  String
+  role                  Role           @default(AGENT)
+  workStatus            WorkStatus     @default(OFFLINE)
+  lastSeenAt            DateTime?
+  tenantId              String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  statusReason          String?
+  
+  // Max concurrent chats
+  maxChats              Int            @default(5)
+  
+  assignedConversations Conversation[] @relation("AssignedAgent")
+  transfersFrom         ConversationTransfer[] @relation("TransferFrom")
+  transfersTo           ConversationTransfer[] @relation("TransferTo")
+  internalNotes         InternalNote[]
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  skills                UserSkill[]
+
+  @@index([tenantId])
+}
+
+model Skill {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  tenantId    String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       UserSkill[]
+
+  @@unique([tenantId, name])
+}
+
+model UserSkill {
+  userId     String
+  skillId    String
+  assignedAt DateTime @default(now())
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, skillId])
+}
+
+model Contact {
+  id            String         @id @default(uuid())
+  phone         String
+  name          String?
+  customFields  Json?
+  tenantId      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  tags          Tag[]
+
+  @@unique([tenantId, phone])
+  @@index([phone])
+  @@index([tenantId])
+}
+
+model Tag {
+  id       String    @id @default(uuid())
+  name     String
+  color    String    @default("#6c757d")
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contacts Contact[]
+
+  @@unique([tenantId, name])
+}
+
+model Conversation {
+  id            String             @id @default(uuid())
+  contactId     String
+  assignedToId  String?
+  tenantId      String
+  status        ConversationStatus @default(BOT)
+  unreadCount   Int                @default(0)
+  lastMessageAt DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  flowState     Json?
+  closingNotes  String?
+  disposition   String?
+  
+  assignedTo    User?              @relation("AssignedAgent", fields: [assignedToId], references: [id])
+  contact       Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  internalNotes InternalNote[]
+  transfers     ConversationTransfer[]
+
+  @@index([tenantId, status])
+  @@index([assignedToId])
+  @@index([contactId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String           @id @default(uuid())
+  conversationId String
+  content        String
+  contentType    String           @default("text") // text, image, video, audio, document, location, sticker
+  mediaUrl       String?
+  mediaSize      Int?             // Size in bytes
+  mediaMimeType  String?          // MIME type
+  mediaFilename  String?          // Original filename
+  direction      MessageDirection
+  senderId       String?
+  createdAt      DateTime         @default(now())
+  status         String           @default("SENT") // SENT, DELIVERED, READ, FAILED
+  waId           String?          @unique
+  cost           Float?           @default(0.0)
+  campaignId     String?
+  
+  // Reply context
+  replyToId      String?          // ID of message being replied to
+  
+  campaign       Campaign?        @relation(fields: [campaignId], references: [id])
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([direction])
+  @@index([contentType])
+}
+
+model Template {
+  id         String   @id @default(uuid())
+  name       String
+  category   String?
+  language   String   @default("pt_BR")
+  status     String   @default("APPROVED")
+  components Json?
+  content    String?  // Deprecated, keep for backup or quick preview
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+}
+
+model Campaign {
+  id           String    @id @default(uuid())
+  name         String
+  status       String    @default("DRAFT")
+  scheduledAt  DateTime?
+  finishedAt   DateTime?
+  templateName String
+  variables    Json?
+  targetTags   Json?
+  totalTarget  Int       @default(0)
+  successCount Int       @default(0)
+  failCount    Int       @default(0)
+  
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  balance   Float    @default(0.0)
+  currency  String   @default("BRL")
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  amount      Float
+  type        String   // CREDIT, DEBIT
+  description String
+  referenceId String?
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  SUPER_ADMIN // Owner of the SaaS Platform
+  OWNER       // Legacy (Tenant Owner - treated as Admin)
+  ADMIN       // Tenant Admin (Config, Flows, Finance)
+  SUPERVISOR  // Supervisor (Monitor, Assign, Spy - No Config/Flows)
+  AGENT       // Agent (Chat only)
+}
+
+enum WorkStatus {
+  ONLINE
+  BUSY
+  AWAY
+  PAUSED
+  OFFLINE
+}
+
+enum ConversationStatus {
+  BOT
+  QUEUED
+  ASSIGNED
+  RESOLVED
+  CLOSED      // Sessão completamente encerrada - não pode reabrir
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+// Quick Replies (Canned Responses)
+model QuickReply {
+  id          String   @id @default(uuid())
+  title       String
+  shortcut    String   // Ex: /hello, /refund
+  content     String
+  category    String?  // Ex: Greeting, FAQ, Support
+  isActive    Boolean  @default(true)
+  useCount    Int      @default(0)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, shortcut])
+  @@index([tenantId, category])
+}
+
+// Internal Notes (Agent-only notes)
+model InternalNote {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  content        String
+  createdAt      DateTime     @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([conversationId])
+  @@index([userId])
+}
+
+// Conversation Transfers
+model ConversationTransfer {
+  id             String       @id @default(uuid())
+  conversationId String
+  fromUserId     String?      // Null if from BOT/QUEUED
+  toUserId       String
+  reason         String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  fromUser       User?        @relation("TransferFrom", fields: [fromUserId], references: [id])
+  toUser         User         @relation("TransferTo", fields: [toUserId], references: [id])
+
+  @@index([conversationId])
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+// Configuration - API Credentials for WhatsApp Integration
+// Stores per-tenant WhatsApp API credentials securely
+model Configuration {
+  id              String    @id @default(uuid())
+  tenantId        String    @unique
+  phoneNumberId   String?   // WhatsApp Business Phone Number ID
+  verifyToken     String?   // Webhook verification token
+  whatsappToken   String?   // WhatsApp API access token (permanent)
+  metaAppSecret   String?   // Meta app secret for HMAC validation
+  updatedBy       String?   // User who made the last update
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@index([tenantId])
+}

@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Broker - Área do Agente</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-dark bg-success sticky-top">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#"> <i class="bi bi-whatsapp"></i> Painel do Agente </a>
+        <div class="d-flex align-items-center gap-3">
+          <!-- Status Dropdown -->
+          <div class="dropdown">
+            <button
+              class="btn btn-light btn-sm dropdown-toggle fw-bold"
+              type="button"
+              id="agentStatusBtn"
+              data-bs-toggle="dropdown"
+            >
+              ⚪ Carregando...
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item text-success" href="#" onclick="setAgentStatusUI('online')"
+                  >🟢 Online</a
+                >
+              </li>
+              <li>
+                <a class="dropdown-item text-warning" href="#" onclick="initiatePause()"
+                  >⏸️ Pausa</a
+                >
+              </li>
+              <li><hr class="dropdown-divider" /></li>
+              <li>
+                <a class="dropdown-item text-danger" href="#" onclick="setAgentStatusUI('offline')"
+                  >🔴 Offline</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <span id="pauseTimerBadge" class="badge bg-warning text-dark d-none">00:00</span>
+
+          <div class="vr text-white"></div>
+
+          <div class="dropdown">
+            <a
+              href="#"
+              class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
+              id="userMenu"
+              data-bs-toggle="dropdown"
+            >
+              <i class="bi bi-person-circle fs-5 me-2"></i>
+              <span id="agentNameDisplay">Agente</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item" onclick="logout()">Sair</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid h-100 p-0 overflow-hidden d-flex flex-column" style="height: 100vh">
+      <!-- Navbar Height: approx 56px -->
+      <div class="row g-0 flex-grow-1 overflow-hidden">
+        <!-- Sidebar: Lista de Conversas -->
+        <div
+          class="col-md-3 col-lg-3 d-flex flex-column border-end bg-white h-100"
+          id="chatListSidebar"
+        >
+          <!-- Header Sidebar -->
+          <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+            <div
+              class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center"
+              style="width: 36px; height: 36px"
+            >
+              <i class="bi bi-person-fill"></i>
+            </div>
+            <div class="d-flex gap-3">
+              <button class="btn btn-sm btn-link text-secondary p-0">
+                <i class="bi bi-circle-message fs-5"></i>
+              </button>
+              <button class="btn btn-sm btn-link text-secondary p-0">
+                <i class="bi bi-three-dots-vertical fs-5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabs/Filters -->
+          <div class="p-2 border-bottom bg-white">
+            <div class="d-flex gap-2">
+              <button
+                class="btn btn-outline-success btn-sm flex-grow-1 position-relative"
+                onclick="loadChats('queue')"
+              >
+                Fila <span class="badge bg-danger rounded-pill ms-1" id="queueCount">0</span>
+              </button>
+              <button class="btn btn-success btn-sm flex-grow-1" onclick="loadChats('my')">
+                Meus Chats
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-grow-1 overflow-auto" id="chatList" style="background-color: white">
+            <!-- Dynamic List -->
+            <div class="text-center p-4 text-muted small mt-4">Carregando conversas...</div>
+          </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div
+          class="col-md-9 col-lg-6 d-flex flex-column h-100 position-relative bg-whatsapp-wall"
+          id="chatArea"
+        >
+          <!-- Header Conversa -->
+          <div
+            id="chatHeader"
+            class="p-2 px-3 border-bottom d-flex justify-content-between align-items-center bg-light flex-shrink-0"
+            style="height: 60px"
+          >
+            <div class="d-flex align-items-center">
+              <!-- Botão Voltar (visível apenas em mobile) -->
+              <button
+                class="btn btn-link text-dark p-0 me-2 d-md-none"
+                onclick="backToChats()"
+                id="backButton"
+                title="Voltar"
+              >
+                <i class="bi bi-arrow-left fs-4"></i>
+              </button>
+
+              <div
+                class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                style="width: 40px; height: 40px"
+              >
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <div class="d-flex flex-column">
+                <h6 class="mb-0 fw-bold text-dark" id="currentChatTitle">...</h6>
+                <small class="text-muted" id="currentChatSubtitle" style="font-size: 12px"
+                  >Clique em um chat para iniciar</small
+                >
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <!-- Botão Histórico -->
+              <button
+                class="btn btn-outline-info btn-sm"
+                onclick="openHistoryPanel()"
+                title="Histórico"
+              >
+                <i class="bi bi-clock-history"></i>
+              </button>
+
+              <!-- Botão Notas Internas (Fase 2) -->
+              <button
+                class="btn btn-outline-primary btn-sm"
+                onclick="toggleNotesPanel()"
+                title="Notas Internas"
+              >
+                <i class="bi bi-sticky"></i> <span class="badge bg-primary" id="notesCount">0</span>
+              </button>
+
+              <!-- Botão Transferir (Fase 2) -->
+              <button
+                class="btn btn-outline-secondary btn-sm"
+                onclick="openTransferModal()"
+                title="Transferir Conversa"
+              >
+                <i class="bi bi-arrow-left-right"></i>
+              </button>
+
+              <!-- Botão Encerrar -->
+              <button class="btn btn-light border btn-sm text-danger" onclick="closeChat()">
+                <i class="bi bi-x-lg"></i> Encerrar
+              </button>
+            </div>
+          </div>
+
+          <!-- Webview / Messages -->
+          <div id="messagesArea" class="flex-grow-1 p-4 overflow-auto d-flex flex-column">
+            <div
+              class="w-100 h-100 d-flex flex-column align-items-center justify-content-center text-muted"
+              id="emptyState"
+            >
+              <i class="bi bi-whatsapp display-4 text-success mb-3"></i>
+              <p class="mb-0">WhatsApp Intranet Broker</p>
+              <small>Selecione uma conversa para começar o atendimento.</small>
+            </div>
+            <!-- Messages will be injected here -->
+          </div>
+
+          <!-- Input Area -->
+          <div
+            id="inputArea"
+            class="p-3 bg-light d-none align-items-center gap-2 border-top flex-shrink-0"
+          >
+            <form
+              onsubmit="handleSendMessage(event)"
+              class="d-flex w-100 align-items-center gap-2 m-0 p-0"
+            >
+              <input type="hidden" id="currentPhone" />
+              <input
+                type="file"
+                id="mediaFileInput"
+                class="d-none"
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                onchange="handleMediaUpload(event)"
+              />
+
+              <!-- Botão Quick Replies (Fase 2) -->
+              <div class="dropdown">
+                <button
+                  type="button"
+                  class="btn btn-link text-secondary p-0 fs-4"
+                  data-bs-toggle="dropdown"
+                  title="Respostas Rápidas"
+                >
+                  <i class="bi bi-lightning-charge-fill"></i>
+                </button>
+                <ul
+                  class="dropdown-menu"
+                  id="quickRepliesMenu"
+                  style="max-height: 300px; overflow-y: auto"
+                >
+                  <li><span class="dropdown-item-text text-muted small">Carregando...</span></li>
+                </ul>
+              </div>
+
+              <!-- Botão Upload Mídia (Fase 2) -->
+              <button
+                type="button"
+                class="btn btn-link text-secondary p-0 fs-4"
+                onclick="document.getElementById('mediaFileInput').click()"
+                title="Enviar Mídia"
+              >
+                <i class="bi bi-paperclip"></i>
+              </button>
+
+              <input
+                type="text"
+                class="form-control rounded-pill border-0 px-3 py-2"
+                id="chatInput"
+                placeholder="Mensagem ou /comando"
+                autocomplete="off"
+                style="font-size: 15px"
+                oninput="handleQuickReplyShortcut(event)"
+              />
+
+              <button type="submit" class="btn btn-link text-success p-0 fs-3">
+                <i class="bi bi-send-fill"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Painel de Notas Internas (Fase 2) -->
+        <div
+          class="col-md-3 col-lg-3 d-none flex-column h-100 border-start bg-white"
+          id="notesPanel"
+        >
+          <div class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold">📝 Notas Internas</h6>
+            <button class="btn btn-sm btn-light" onclick="toggleNotesPanel()">
+              <i class="bi bi-x"></i>
+            </button>
+          </div>
+
+          <div class="flex-grow-1 overflow-auto p-3" id="notesList">
+            <div class="text-center text-muted small">Sem notas</div>
+          </div>
+
+          <div class="p-3 border-top">
+            <form onsubmit="addInternalNote(event)">
+              <textarea
+                class="form-control mb-2"
+                id="newNoteInput"
+                rows="2"
+                placeholder="Adicionar nota interna..."
+                required
+              ></textarea>
+              <button type="submit" class="btn btn-primary btn-sm w-100">
+                <i class="bi bi-plus-circle"></i> Adicionar Nota
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Modal -->
+    <div class="modal fade" id="pauseModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Selecionar Motivo de Pausa</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="list-group" id="pauseReasonsList">
+              <!-- Dynamic content -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Close/Tabulate Modal -->
+    <div class="modal fade" id="closeChatModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title">Encerrar e Tabular</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="closeChatForm" onsubmit="confirmCloseChat(event)">
+              <div class="mb-3">
+                <label class="form-label">Motivo do Encerramento (Tabulação)</label>
+                <select class="form-select" id="closeDisposition" required>
+                  <option value="" selected disabled>Selecione...</option>
+                  <option value="Dúvida Sanada">✅ Dúvida Sanada</option>
+                  <option value="Venda Realizada">💲 Venda Realizada</option>
+                  <option value="Problema Técnico">🛠️ Problema Técnico</option>
+                  <option value="Não Respondeu">🔇 Cliente Não Respondeu</option>
+                  <option value="Indesejado">🚫 Spam / Trote</option>
+                  <option value="Outros">📝 Outros</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Observações</label>
+                <textarea
+                  class="form-control"
+                  id="closeNotes"
+                  rows="3"
+                  placeholder="Detalhes opcionais..."
+                ></textarea>
+              </div>
+              <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                  Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">Confirmar Encerramento</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transfer Modal (Fase 2) -->
+    <div class="modal fade" id="transferModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🔄 Transferir Conversa</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <!-- Tabs: Agente Direto ou Por Fila -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link active"
+                  id="tab-direct"
+                  data-bs-toggle="tab"
+                  data-bs-target="#direct-tab"
+                  type="button"
+                >
+                  👤 Agente Direto
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link"
+                  id="tab-skill"
+                  data-bs-toggle="tab"
+                  data-bs-target="#skill-tab"
+                  type="button"
+                >
+                  🎯 Por Fila/Skill
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content">
+              <!-- Tab: Transferência Direta -->
+              <div class="tab-pane fade show active" id="direct-tab">
+                <form id="transferForm" onsubmit="confirmTransfer(event)">
+                  <div class="mb-3">
+                    <label class="form-label">Transferir para:</label>
+                    <select class="form-select" id="transferToAgent" required>
+                      <option value="" selected disabled>Carregando agentes...</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Motivo da Transferência</label>
+                    <select class="form-select" id="transferReason" required>
+                      <option value="" selected disabled>Selecione...</option>
+                      <option value="Especialização">🎯 Especialização Requerida</option>
+                      <option value="Sobrecarga">⚡ Sobrecarga de Atendimentos</option>
+                      <option value="Idioma">🌍 Barreira de Idioma</option>
+                      <option value="Solicitação Cliente">👤 Solicitação do Cliente</option>
+                      <option value="Outros">📝 Outros</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Observações (opcional)</label>
+                    <textarea
+                      class="form-control"
+                      id="transferNotes"
+                      rows="2"
+                      placeholder="Informações adicionais..."
+                    ></textarea>
+                  </div>
+                  <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                      Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                      <i class="bi bi-arrow-left-right"></i> Transferir
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Tab: Transferência por Skill -->
+              <div class="tab-pane fade" id="skill-tab">
+                <form id="transferSkillForm" onsubmit="confirmTransferToSkill(event)">
+                  <div class="alert alert-info small">
+                    <i class="bi bi-info-circle"></i> A conversa será direcionada para o próximo
+                    agente disponível com esta competência.
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Selecione a Fila/Skill:</label>
+                    <select class="form-select" id="transferToSkill" required>
+                      <option value="" selected disabled>Carregando skills...</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Observações (opcional)</label>
+                    <textarea
+                      class="form-control"
+                      id="transferSkillNotes"
+                      rows="2"
+                      placeholder="Informações adicionais..."
+                    ></textarea>
+                  </div>
+                  <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                      Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                      <i class="bi bi-send"></i> Enviar para Fila
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Histórico -->
+    <div class="modal fade" id="historyModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-clock-history"></i> Histórico do Cliente</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <!-- Resumo e Lista de Sessões -->
+              <div class="col-md-4 border-end">
+                <div id="contactSummary" class="mb-3">
+                  <div class="text-center">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <div class="small">Carregando...</div>
+                  </div>
+                </div>
+                <h6 class="fw-bold">Sessões Anteriores</h6>
+                <div id="sessionsList" style="max-height: 400px; overflow-y: auto">
+                  <!-- Lista de sessões -->
+                </div>
+              </div>
+
+              <!-- Mensagens da Sessão Selecionada -->
+              <div class="col-md-8">
+                <div id="sessionMessages">
+                  <div class="text-center py-5 text-muted">
+                    <i class="bi bi-chat-left-text fs-1"></i>
+                    <p class="mt-3">Selecione uma sessão para ver o histórico</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/security.js"></script>
+    <script src="js/frontend.js"></script>
+  </body>
+</html>

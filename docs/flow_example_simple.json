@@ -1,0 +1,54 @@
+{
+  "name": "Atendimento Básico - Teste Rápido",
+  "description": "Flow simples para validar funcionamento básico",
+  "version": "2.0",
+  "start": "inicio",
+
+  "inicio": {
+    "type": "text",
+    "message": "Olá {{name}}! Bem-vindo. 😊",
+    "next": "menu"
+  },
+
+  "menu": {
+    "type": "menu",
+    "message": "O que você precisa?",
+    "options": {
+      "Vendas": "vendas",
+      "Suporte": "suporte",
+      "Atendente": "transfer"
+    }
+  },
+
+  "vendas": {
+    "type": "text",
+    "message": "📞 Setor de vendas! Vou coletar seu e-mail.",
+    "next": "coletar_email"
+  },
+
+  "coletar_email": {
+    "type": "collect_data",
+    "message": "Qual seu e-mail?",
+    "data_key": "email",
+    "validation_pattern": "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$",
+    "validation_error": "E-mail inválido. Tente novamente.",
+    "next": "confirmar_email"
+  },
+
+  "confirmar_email": {
+    "type": "text",
+    "message": "✅ E-mail registrado: {{email}}",
+    "next": "transfer"
+  },
+
+  "suporte": {
+    "type": "text",
+    "message": "🔧 Suporte técnico. Transferindo...",
+    "next": "transfer"
+  },
+
+  "transfer": {
+    "type": "transfer_agent",
+    "message": "Conectando com atendente..."
+  }
+}

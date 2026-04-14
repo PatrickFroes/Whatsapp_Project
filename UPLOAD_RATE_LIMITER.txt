@@ -1,0 +1,33 @@
+COMANDOS PARA UPLOAD DOS ARQUIVOS DO RATE LIMITER
+==================================================
+
+EXECUTE ESTES COMANDOS NO SEU PC (PowerShell):
+
+scp -P 22 "c:\Users\Striker\Documents\Broker\src\middleware\loginRateLimiter.js" amberfy-test@172.233.26.198:~/Broker/Broker/src/middleware/
+
+scp -P 22 "c:\Users\Striker\Documents\Broker\src\controllers\AuthController.js" amberfy-test@172.233.26.198:~/Broker/Broker/src/controllers/
+
+scp -P 22 "c:\Users\Striker\Documents\Broker\src\routes\authRoutes.js" amberfy-test@172.233.26.198:~/Broker/Broker/src/routes/
+
+
+DEPOIS NO SERVIDOR (execute estes comandos):
+
+cd ~/Broker/Broker
+
+docker compose cp src/middleware/loginRateLimiter.js broker_app:/app/src/middleware/
+
+docker compose cp src/controllers/AuthController.js broker_app:/app/src/controllers/
+
+docker compose cp src/routes/authRoutes.js broker_app:/app/src/routes/
+
+docker compose restart broker_app
+
+sleep 10
+
+docker compose logs broker_app | grep -i "listen\|running\|started"
+
+
+PRONTO! O rate limiter está atualizado.
+
+Aguarde 10 segundos para o container reiniciar.
+Depois teste fazendo login 5 vezes com senha errada seguidas.

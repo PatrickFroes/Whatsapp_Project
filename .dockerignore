@@ -1,0 +1,63 @@
+# ===============================================
+# WhatsApp Broker - .dockerignore
+# ===============================================
+
+# Git
+.git
+.gitignore
+
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Node modules (rebuild no container)
+node_modules
+
+# Runtime data
+.wwebjs_auth
+.wwebjs_cache
+.node-persist
+.local_db
+.dist
+
+# Banco local
+dev.db
+dev.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# IDEs
+.vscode
+.idea
+
+# Docs e referência (não necessários no container)
+clone/
+docs/
+*.md
+!README.md
+
+# Scripts de desenvolvimento
+test-*.js
+check_*.js
+fix_data.js
+integration_simulator.py
+odoo_*.py
+test_connectivity.py
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploads temporários
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# ngrok
+ngrok.yml
+ngrok.yaml
+ngrok.example.yml

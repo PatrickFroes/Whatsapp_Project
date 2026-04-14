@@ -1,0 +1,57 @@
+COMANDO PARA VER USUÁRIOS E SENHAS DE UM TENANT
+================================================
+
+OPÇÃO 1 - VIA TERMINAL (listar todos os usuários):
+
+docker compose exec -T broker_app node -e "
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+p.user.findMany({include:{tenant:{select:{name:true}}}}).then(users=>{
+  users.forEach(u=>console.log('Email:',u.email,'| Tenant:',u.tenant.name,'| Role:',u.role));
+  p.\$disconnect();
+});
+"
+
+
+OPÇÃO 2 - VER USUÁRIOS DE UM TENANT ESPECÍFICO:
+
+docker compose exec -T broker_app node -e "
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+const tenantName = 'Empresa'; // Mude para seu tenant
+p.user.findMany({
+  where:{tenant:{name:{contains:tenantName}}},
+  include:{tenant:{select:{name:true,slug:true}}}
+}).then(users=>{
+  console.log('=== USUÁRIOS DO TENANT ===\n');
+  users.forEach(u=>console.log('Email:',u.email,'Role:',u.role));
+  p.\$disconnect();
+});
+"
+
+
+OPÇÃO 3 - VIA pgAdmin (recomendado):
+
+1. Acesse: https://broker.amber.com.br/pgadmin
+2. Email: pgadmin@broker.amber.com.br
+3. Senha: ChangeMeToPgAdminPassword789!@#
+
+4. Na esquerda:
+   - Servers → whatsapp_broker → Databases → whatsapp_broker → Schemas → public → Tables → User
+
+5. Click direito em "User" → View/Edit Data → All Rows
+
+5. Você verá email, role, tenant... mas NÃO vê senha (é hasheada com bcrypt)
+
+
+NOTA IMPORTANTE:
+As senhas são HASHEADAS com bcrypt e NÃO podem ser "deshasheadas"
+Se esqueceu a senha, você precisa RESETAR no painel admin
+
+
+PARA RESETAR SENHA DE UM USUÁRIO:
+1. Acesse: https://broker.amber.com.br/admin.html
+2. Login com super@amber.com / Test1234
+3. Vá em "Usuários"
+4. Procure o usuário
+5. Clique "Resetar Senha"

@@ -1,0 +1,189 @@
+# ===============================================
+# WhatsApp Broker - .gitignore
+# ===============================================
+
+# ===============================================
+# AMBIENTE E SEGREDOS (CRÍTICO - NUNCA COMMITAR)
+# ===============================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cert
+secrets/
+credentials/
+
+# ===============================================
+# NODE.JS
+# ===============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+.pnpm-store/
+package-lock.json.bak
+
+# ===============================================
+# PRISMA - BANCO DE DADOS LOCAL
+# ===============================================
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-wal
+/src/generated/prisma
+
+# Banco SQLite na raiz (se existir)
+dev.db
+dev.db-journal
+
+# ===============================================
+# LOGS
+# ===============================================
+logs/
+*.log
+
+# ===============================================
+# BUILD E CACHE
+# ===============================================
+dist/
+build/
+.cache/
+.temp/
+.tmp/
+
+# ===============================================
+# TESTES E COBERTURA
+# ===============================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ===============================================
+# IDEs E EDITORES
+# ===============================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.settings/
+
+# ===============================================
+# SISTEMA OPERACIONAL
+# ===============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ===============================================
+# WHATSAPP WEB.JS (runtime - NÃO COMMITAR)
+# ===============================================
+.wwebjs_auth/
+.wwebjs_cache/
+
+# ===============================================
+# RUNTIME DATA / STORAGE LOCAL
+# ===============================================
+.node-persist/
+.local_db/
+.dist/
+
+# ===============================================
+# DOCKER
+# ===============================================
+docker-compose.override.yml
+.docker/
+
+# ===============================================
+# NGROK
+# ===============================================
+ngrok.yml
+
+# ===============================================
+# BROKER SUBFOLDER (LOCAL DEVELOPMENT)
+# ===============================================
+Broker/
+ngrok.yaml
+*.ngrok.yml
+*.ngrok.yaml
+
+# ===============================================
+# CLONE / REFERÊNCIA EXTERNA
+# ===============================================
+clone/
+
+# ===============================================
+# ARQUIVOS TEMPORÁRIOS E BACKUPS
+# ===============================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.orig
+tmp/
+temp/
+
+# ===============================================
+# UPLOADS E MÍDIA
+# ===============================================
+uploads/*
+!uploads/.gitkeep
+media/
+*.mp4
+*.mp3
+*.wav
+*.avi
+
+# ===============================================
+# RELATÓRIOS E EXPORTS
+# ===============================================
+reports/
+exports/
+
+# ===============================================
+# ARQUIVOS GRANDES / COMPACTADOS
+# ===============================================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ===============================================
+# PM2
+# ===============================================
+.pm2/
+ecosystem.config.js.bak
+
+# ===============================================
+# PYTHON (scripts auxiliares)
+# ===============================================
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+ENV/
+env/

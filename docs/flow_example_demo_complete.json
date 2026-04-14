@@ -1,0 +1,220 @@
+{
+  "name": "Atendimento Completo - Demo",
+  "description": "Flow demonstrativo com todos os recursos do FlowEngine V2",
+  "version": "2.0",
+  "start": "boas_vindas",
+
+  "boas_vindas": {
+    "type": "text",
+    "message": "Olá {{name}}! 👋 Bem-vindo à nossa central de atendimento.",
+    "next": "menu_principal"
+  },
+
+  "menu_principal": {
+    "type": "menu",
+    "message": "Como posso ajudar você hoje?",
+    "header": "Menu Principal",
+    "footer": "Selecione uma opção",
+    "options": {
+      "🛒 Fazer Pedido": "iniciar_pedido",
+      "📦 Rastrear Pedido": "rastrear_pedido",
+      "💳 Segunda Via Boleto": "segunda_via",
+      "👤 Atualizar Cadastro": "atualizar_cadastro",
+      "👨‍💼 Falar com Atendente": "transferir_generico"
+    }
+  },
+
+  "iniciar_pedido": {
+    "type": "text",
+    "message": "Ótimo! Vamos iniciar seu pedido.",
+    "next": "pedir_cep"
+  },
+
+  "pedir_cep": {
+    "type": "collect_data",
+    "message": "Para calcular o frete, informe seu CEP (apenas números):",
+    "data_key": "cep",
+    "validation_pattern": "^\\d{8}$",
+    "validation_error": "❌ CEP inválido. Por favor, digite 8 números sem traço.\n\nExemplo: 01310100",
+    "next": "consultar_cep"
+  },
+
+  "consultar_cep": {
+    "type": "api_call",
+    "api_url": "https://viacep.com.br/ws/{{cep}}/json/",
+    "api_method": "GET",
+    "api_save_var": "endereco",
+    "api_map_fields": {
+      "cidade": "localidade",
+      "uf": "uf",
+      "bairro": "bairro",
+      "logradouro": "logradouro"
+    },
+    "on_error_message": "❌ Não consegui consultar o CEP. Vou transferir você para um atendente que poderá ajudar.",
+    "on_error_next": "transferir_vendas",
+    "next": "confirmar_endereco"
+  },
+
+  "confirmar_endereco": {
+    "type": "text",
+    "message": "📍 Endereço encontrado:\n{{logradouro}}, {{bairro}}\n{{cidade}}-{{uf}}",
+    "next": "check_regiao"
+  },
+
+  "check_regiao": {
+    "type": "conditional",
+    "condition": "{{uf}} === 'SP' || {{uf}} === 'RJ' || {{uf}} === 'MG'",
+    "if_true": "regiao_sudeste",
+    "if_false": "regiao_outras"
+  },
+
+  "regiao_sudeste": {
+    "type": "text",
+    "message": "🎉 Ótima notícia! Para {{cidade}}-{{uf}} temos:\n\n✅ Frete GRÁTIS\n✅ Entrega em 24-48h",
+    "next": "menu_continuar_pedido"
+  },
+
+  "regiao_outras": {
+    "type": "text",
+    "message": "Para {{cidade}}-{{uf}}:\n\n📦 Frete: R$ 25,00\n🚚 Prazo: 5-7 dias úteis",
+    "next": "menu_continuar_pedido"
+  },
+
+  "menu_continuar_pedido": {
+    "type": "menu",
+    "message": "Deseja continuar com o pedido?",
+    "options": {
+      "✅ Sim, continuar": "confirmar_continuar",
+      "❌ Não, voltar ao menu": "menu_principal"
+    }
+  },
+
+  "confirmar_continuar": {
+    "type": "set_data",
+    "data_key": "interesse",
+    "data_value": "pedido_novo",
+    "next": "transferir_vendas"
+  },
+
+  "rastrear_pedido": {
+    "type": "collect_data",
+    "message": "📦 Para rastrear seu pedido, informe o número (ex: 123456):",
+    "data_key": "numero_pedido",
+    "validation_pattern": "^\\d{6,10}$",
+    "validation_error": "❌ Número de pedido inválido. Digite apenas números (6 a 10 dígitos).",
+    "next": "simular_rastreio"
+  },
+
+  "simular_rastreio": {
+    "type": "text",
+    "message": "🔍 Consultando pedido {{numero_pedido}}...",
+    "next": "resultado_rastreio"
+  },
+
+  "resultado_rastreio": {
+    "type": "text",
+    "message": "📦 *Pedido #{{numero_pedido}}*\n\n✅ Status: Em trânsito\n📍 Última localização: Centro de Distribuição - São Paulo\n📅 Previsão de entrega: 2 dias úteis\n\n_Obs: Este é um exemplo. Para informações reais, conectarei você com um atendente._",
+    "next": "menu_pos_rastreio"
+  },
+
+  "menu_pos_rastreio": {
+    "type": "menu",
+    "message": "Posso ajudar em mais algo?",
+    "options": {
+      "🔙 Voltar ao Menu": "menu_principal",
+      "👨‍💼 Falar com Atendente": "transferir_generico"
+    }
+  },
+
+  "segunda_via": {
+    "type": "collect_data",
+    "message": "💳 Para emitir a segunda via do boleto, informe seu CPF (apenas números):",
+    "data_key": "cpf",
+    "validation_pattern": "^\\d{11}$",
+    "validation_error": "❌ CPF inválido. Digite 11 números sem pontos ou traços.\n\nExemplo: 12345678900",
+    "next": "processar_segunda_via"
+  },
+
+  "processar_segunda_via": {
+    "type": "text",
+    "message": "🔍 Consultando boletos para CPF {{cpf}}...",
+    "next": "transferir_financeiro"
+  },
+
+  "atualizar_cadastro": {
+    "type": "text",
+    "message": "📝 Vou coletar algumas informações para atualizar seu cadastro.",
+    "next": "pedir_nome"
+  },
+
+  "pedir_nome": {
+    "type": "collect_data",
+    "message": "Qual seu nome completo?",
+    "data_key": "nome_completo",
+    "validation_pattern": "^[A-Za-zÀ-ÿ\\s]{5,}$",
+    "validation_error": "❌ Nome inválido. Digite seu nome completo (apenas letras).",
+    "next": "pedir_email"
+  },
+
+  "pedir_email": {
+    "type": "collect_data",
+    "message": "Agora informe seu e-mail:",
+    "data_key": "email",
+    "validation_pattern": "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$",
+    "validation_error": "❌ E-mail inválido. Digite um e-mail válido.\n\nExemplo: seu@email.com",
+    "next": "pedir_data_nascimento"
+  },
+
+  "pedir_data_nascimento": {
+    "type": "collect_data",
+    "message": "Data de nascimento (formato: DD/MM/AAAA):",
+    "data_key": "data_nascimento",
+    "validation_pattern": "^(0[1-9]|[12][0-9]|3[01])\\/(0[1-9]|1[0-2])\\/\\d{4}$",
+    "validation_error": "❌ Data inválida. Use o formato DD/MM/AAAA.\n\nExemplo: 15/03/1990",
+    "next": "confirmar_dados"
+  },
+
+  "confirmar_dados": {
+    "type": "text",
+    "message": "✅ *Dados coletados:*\n\n👤 Nome: {{nome_completo}}\n📧 E-mail: {{email}}\n🎂 Nascimento: {{data_nascimento}}\n\nUm atendente irá validar e atualizar seu cadastro.",
+    "next": "transferir_cadastro"
+  },
+
+  "transferir_vendas": {
+    "type": "transfer_agent",
+    "message": "📞 Transferindo você para a equipe de *Vendas*...\n\nAguarde um momento, por favor.",
+    "skill": "Vendas",
+    "dept": "Vendas"
+  },
+
+  "transferir_financeiro": {
+    "type": "transfer_agent",
+    "message": "💰 Transferindo para o setor *Financeiro*...\n\nEles vão ajudar com seu boleto.",
+    "skill": "Financeiro",
+    "dept": "Financeiro"
+  },
+
+  "transferir_cadastro": {
+    "type": "transfer_agent",
+    "message": "📋 Conectando com a equipe de *Cadastro*...",
+    "skill": "Cadastro",
+    "dept": "Cadastro"
+  },
+
+  "transferir_generico": {
+    "type": "transfer_agent",
+    "message": "👨‍💼 Conectando você com um atendente...\n\nAguarde um instante.",
+    "skill": null
+  },
+
+  "erro_generico": {
+    "type": "text",
+    "message": "😔 Desculpe, ocorreu um erro inesperado.\n\nVou transferir você para um atendente que poderá ajudar.",
+    "next": "transferir_generico"
+  },
+
+  "fim": {
+    "type": "end",
+    "message": "Obrigado pelo contato! 👋\n\nSe precisar de algo, estamos por aqui."
+  }
+}
