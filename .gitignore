@@ -120,9 +120,11 @@ docker-compose.override.yml
 ngrok.yml
 
 # ===============================================
-# BROKER SUBFOLDER (LOCAL DEVELOPMENT)
+# BROKER SUBFOLDER & EMBEDDED REPOS (LOCAL DEVELOPMENT)
 # ===============================================
 Broker/
+broker-meta/
+.git/
 ngrok.yaml
 *.ngrok.yml
 *.ngrok.yaml
