@@ -1,5 +1,5 @@
-const express = const logger = require('../utils/logger');
-const 'express');
+const logger = require('../utils/logger');
+const express = require('express');
 const router = express.Router();
 const WebhookController = require('../controllers/WebhookController');
 const { validateWebhookHmac } = require('../middleware/webhookHmac.middleware');

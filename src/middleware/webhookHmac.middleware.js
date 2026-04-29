@@ -29,51 +29,41 @@ const logger = require('../utils/logger');
  */
 const validateWebhookHmac = async (req, res, next) => {
   try {
-    logger.debug('[Webhook HMAC] New webhook request detected');
-    logger.debug('[Webhook HMAC] URL:', req.originalUrl);
-    logger.debug('[Webhook HMAC] Method:', req.method);
-    
+    logger.debug('[Webhook HMAC] Processing webhook request');
+
     // 1. Buscar assinatura do Meta (header)
     const signature = req.headers['x-hub-signature-256'];
 
     if (!signature) {
       logger.warn('[Webhook HMAC] Missing X-Hub-Signature-256 header');
-      logger.warn('[Webhook HMAC] Available headers:', Object.keys(req.headers));
       return res.status(403).json({
         error: 'Invalid webhook signature',
         details: 'Missing X-Hub-Signature-256 header'
       });
     }
-    
-    logger.debug('[Webhook HMAC 🔍] Signature header found:', signature.substring(0, 20) + '...');
+
+    logger.debug('[Webhook HMAC] Signature header found (masked for security)');
 
     // 2. Validar que req.rawBody existe
     // (server.js deve ter sido configurado para capturar)
     if (!req.rawBody) {
-      logger.error('[Webhook HMAC] req.rawBody not available');
-      logger.debug('[Webhook HMAC 🔍] Body type:', typeof req.body);
-      logger.debug('[Webhook HMAC 🔍] Body keys:', req.body ? Object.keys(req.body) : 'null');
+      logger.error('[Webhook HMAC] req.rawBody not available - server configuration error');
       return res.status(500).json({
         error: 'Server configuration error',
         details: 'rawBody not captured'
       });
     }
-    
-    logger.debug('[Webhook HMAC 🔍] Raw body size:', req.rawBody.length, 'bytes');
+
+    logger.debug('[Webhook HMAC] Raw body received, parsing payload');
 
     // 3. Extrair waPhoneId do body para identificar tenant
     let waPhoneId;
     try {
       const bodyData = JSON.parse(req.rawBody);
       waPhoneId = bodyData?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
-      logger.debug('[Webhook HMAC 🔍] Extracted waPhoneId:', waPhoneId || 'NOT FOUND');
-      logger.debug('[Webhook HMAC 🔍] Full payload object:', bodyData.object);
-      logger.debug('[Webhook HMAC 🔍] Entry count:', bodyData.entry?.length);
-      if (bodyData.entry?.[0]?.changes?.[0]?.value?.messages) {
-        logger.debug('[Webhook HMAC 🔍] Message count:', bodyData.entry[0].changes[0].value.messages.length);
-      }
+      logger.debug('[Webhook HMAC] Payload parsed successfully');
     } catch (e) {
-      logger.warn('[Webhook HMAC] Invalid JSON in body:', e.message);
+      logger.warn('[Webhook HMAC] Invalid JSON in webhook body');
       return res.status(400).json({
         error: 'Invalid request body',
         details: 'Body is not valid JSON'
@@ -81,7 +71,7 @@ const validateWebhookHmac = async (req, res, next) => {
     }
 
     if (!waPhoneId) {
-      logger.warn('[Webhook HMAC] No phone_number_id in webhook');
+      logger.warn('[Webhook HMAC] Missing phone_number_id in webhook');
       return res.status(400).json({
         error: 'Invalid webhook structure',
         details: 'No phone_number_id found in metadata'
@@ -94,20 +84,14 @@ const validateWebhookHmac = async (req, res, next) => {
     });
 
     if (!tenant) {
-      logger.warn(`[Webhook HMAC] ❌ No tenant found for waPhoneId: ${waPhoneId}`);
-      // Debug: show all available tenants
-      const allTenants = await prisma.tenant.findMany({
-        select: { id: true, name: true, waPhoneId: true }
-      });
-      logger.warn('[Webhook HMAC] Available tenants:', allTenants);
-      // Retorna 403 para não alertar atacantes de que o waPhoneId é válido
+      logger.warn('[Webhook HMAC] Webhook from unknown phone_number_id - rejected');
       return res.status(403).json({
         error: 'Invalid tenant',
         details: 'Unknown phone_number_id'
       });
     }
 
-    logger.debug(`[Webhook HMAC 🔍] ✓ Found tenant: ${tenant.name} (${tenant.id})`);
+    logger.debug('[Webhook HMAC] Tenant found, validating configuration');
 
     // 5. Buscar Configuration do tenant (com metaAppSecret)
     const config = await prisma.configuration.findUnique({
@@ -115,23 +99,15 @@ const validateWebhookHmac = async (req, res, next) => {
     });
 
     if (!config) {
-      logger.error(
-        `[Webhook HMAC] ❌ No Configuration found for tenant ${tenant.id} - Webhook rejected`
-      );
+      logger.error('[Webhook HMAC] Tenant configuration missing');
       return res.status(500).json({
         error: 'Configuration incomplete',
         details: 'No configuration record exists for this tenant'
       });
     }
-    
-    logger.debug(`[Webhook HMAC 🔍] ✓ Found Configuration`);
-    logger.debug(`[Webhook HMAC 🔍] phoneNumberId: ${config.phoneNumberId}`);
-    logger.debug(`[Webhook HMAC 🔍] metaAppSecret: ${config.metaAppSecret ? 'SET ✓' : 'MISSING ❌'}`);
 
     if (!config.metaAppSecret) {
-      logger.error(
-        `[Webhook HMAC] ❌ Missing metaAppSecret for tenant ${tenant.id} - Webhook rejected`
-      );
+      logger.error('[Webhook HMAC] Tenant metaAppSecret not configured');
       return res.status(500).json({
         error: 'Configuration incomplete',
         details: 'metaAppSecret not configured'
@@ -139,31 +115,25 @@ const validateWebhookHmac = async (req, res, next) => {
     }
 
     // 6. Calcular HMAC esperado
-    logger.debug('[Webhook HMAC 🔍] Calculating HMAC...');
+    logger.debug('[Webhook HMAC] Validating HMAC signature');
     const expectedHmac = crypto
       .createHmac('sha256', config.metaAppSecret)
       .update(req.rawBody, 'utf8')
       .digest('hex');
 
     const expectedSignature = `sha256=${expectedHmac}`;
-    
-    logger.debug('[Webhook HMAC 🔍] Expected signature:', expectedSignature.substring(0, 30) + '...');
-    logger.debug('[Webhook HMAC 🔍] Received signature:', signature.substring(0, 30) + '...');
 
     // 7. Validar assinatura (usar timingSafeEqual para evitar timing attacks)
     let isValid = false;
     try {
       isValid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
     } catch (e) {
-      logger.error('[Webhook HMAC 🔍] timingSafeEqual error (length mismatch?):', e.message);
-      logger.debug('[Webhook HMAC 🔍] Expected length:', expectedSignature.length);
-      logger.debug('[Webhook HMAC 🔍] Received length:', signature.length);
+      // Length mismatch - signatures não coincidem
       isValid = false;
     }
 
     if (!isValid) {
-      logger.error(`[Webhook HMAC] ❌ Invalid signature for tenant ${tenant.id}`);
-      logger.debug('[Webhook HMAC 🔍] Signature mismatch - webhook rejected');
+      logger.error(`[Webhook HMAC] Invalid signature for tenant ${tenant.id} - Webhook rejected`);
       return res.status(403).json({
         error: 'Invalid webhook signature',
         details: 'HMAC validation failed'
@@ -174,14 +144,14 @@ const validateWebhookHmac = async (req, res, next) => {
     req.tenant = tenant;
     req.webhookConfig = config;
 
-    logger.debug(`[Webhook HMAC] ✅ PASSED: Valid webhook from tenant: ${tenant.name}`);
+    logger.debug('[Webhook HMAC] ✅ Webhook HMAC validation passed');
 
     next();
   } catch (error) {
-    logger.error('[Webhook HMAC] Unexpected error:', error);
+    logger.error('[Webhook HMAC] Unexpected error during validation');
     res.status(500).json({
       error: 'Internal server error',
-      details: error.message
+      details: 'Webhook validation failed'
     });
   }
 };

@@ -83,7 +83,8 @@ const {
   messageSendLimiter,
   mediaUploadLimiter,
   adminLimiter,
-  passwordResetLimiter
+  passwordResetLimiter,
+  healthCheckLimiter
 } = require('./src/middleware/rateLimiters');
 // Note: loginLimiter removed - login rate limiting uses custom device-based middleware
 
@@ -169,13 +170,16 @@ async function startServer() {
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
 
-        if (
-          origin.includes('.ngrok.io') ||
-          origin.includes('.ngrok-free.app') ||
-          origin.includes('.ngrok-free.dev') ||
-          origin.includes('ngrok.app')
-        ) {
-          return callback(null, true);
+        // Apenas permitir ngrok em desenvolvimento
+        if (process.env.NODE_ENV !== 'production') {
+          if (
+            origin.includes('.ngrok.io') ||
+            origin.includes('.ngrok-free.app') ||
+            origin.includes('.ngrok-free.dev') ||
+            origin.includes('ngrok.app')
+          ) {
+            return callback(null, true);
+          }
         }
 
         if (privateIpPattern.test(origin)) {
@@ -305,7 +309,7 @@ async function startServer() {
   app.use('/api/customer-history', historyRoutes);
 
   // Health Check
-  app.get('/health', (req, res) => {
+  app.get('/health', healthCheckLimiter, (req, res) => {
     res.json({ status: 'ok', version: '2.0.0-saas' });
   });
 

@@ -122,6 +122,22 @@ const passwordResetLimiter = rateLimit({
 });
 
 /**
+ * Health Check Rate Limiter
+ * Protege contra probing/scanning
+ * 30 requisições por minuto por IP
+ */
+const healthCheckLimiter = rateLimit({
+  windowMs: MINUTE_MS,
+  max: 30,
+  message: {
+    error: 'Health check rate limit exceeded'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV !== 'production' // Skip em desenvolvimento
+});
+
+/**
  * Export all limiters for use in routes
  * Note: loginLimiter removed - use custom middleware checkLoginAttempts instead
  */
@@ -132,5 +148,6 @@ module.exports = {
   messageSendLimiter,
   mediaUploadLimiter,
   adminLimiter,
-  passwordResetLimiter
+  passwordResetLimiter,
+  healthCheckLimiter
 };
