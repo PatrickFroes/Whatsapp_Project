@@ -1,6 +1,5 @@
 const logger = require('../utils/logger');
-const prisma =
-const './database');
+const prisma = require('./database');
 const whatsappService = require('./whatsapp');
 const BusinessHoursService = require('./BusinessHoursService');
 const SafeEvaluator = require('./SafeEvaluator');

@@ -245,7 +245,7 @@ class WebhookController {
     let content = '';
     let contentType = msg.type;
     let mediaUrl = null;
-    const mediaSize = null;
+    let mediaSize = null; // Will be populated from media objects
     let mediaMimeType = null;
     let mediaFilename = null;
 
@@ -264,25 +264,30 @@ class WebhookController {
       mediaUrl = msg.image.id; // WhatsApp media ID
       mediaMimeType = msg.image.mime_type;
       mediaFilename = msg.image.filename || 'image.jpg';
+      mediaSize = msg.image.size || null; // Extract size if available
     } else if (contentType === 'video') {
       content = msg.video.caption || '[Vídeo]';
       mediaUrl = msg.video.id;
       mediaMimeType = msg.video.mime_type;
       mediaFilename = msg.video.filename || 'video.mp4';
+      mediaSize = msg.video.size || null;
     } else if (contentType === 'audio') {
       content = '[Áudio]';
       mediaUrl = msg.audio.id;
       mediaMimeType = msg.audio.mime_type;
       mediaFilename = 'audio.ogg';
+      mediaSize = msg.audio.size || null;
     } else if (contentType === 'document') {
       content = msg.document.caption || '[Documento]';
       mediaUrl = msg.document.id;
       mediaMimeType = msg.document.mime_type;
       mediaFilename = msg.document.filename || 'document.pdf';
+      mediaSize = msg.document.size || null;
     } else if (contentType === 'sticker') {
       content = '[Sticker]';
       mediaUrl = msg.sticker.id;
       mediaMimeType = msg.sticker.mime_type;
+      mediaSize = msg.sticker.size || null;
     } else if (contentType === 'location') {
       const loc = msg.location;
       content = `📍 ${loc.name || 'Localização'}`;
@@ -347,30 +352,122 @@ class WebhookController {
       logger.error('[Webhook] Bot Execution Failed:', {
         conversationId: conversation.id,
         contactPhone: senderPhone,
-        error: err.message
+        error: err.message,
+        stack: err.stack
       });
-      // Fallback: Se bot falhou e a conversão ainda está em BOT, transfere para fila
-      try {
-        const currentConv = await prisma.conversation.findUnique({
-          where: { id: conversation.id },
-          select: { status: true }
-        });
-        if (currentConv && currentConv.status === 'BOT') {
-          logger.debug('[Webhook] Fallback: transferring conversation to queue after bot failure');
+
+      // Fallback with retry: Se bot falhou e a conversa ainda está em BOT, transfere para fila
+      let fallbackSucceeded = false;
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const currentConv = await prisma.conversation.findUnique({
+            where: { id: conversation.id },
+            select: { status: true, id: true }
+          });
+
+          if (!currentConv) {
+            logger.error('[Webhook] Conversation disappeared during fallback attempt', {
+              conversationId: conversation.id
+            });
+            break;
+          }
+
+          if (currentConv.status !== 'BOT') {
+            logger.debug('[Webhook] Conversation already out of BOT status, no fallback needed', {
+              currentStatus: currentConv.status
+            });
+            fallbackSucceeded = true;
+            break;
+          }
+
+          logger.debug(`[Webhook] Fallback attempt ${attempt}/${maxRetries}: transferring to queue`, {
+            conversationId: conversation.id
+          });
+
           await FlowEngine.transferToQueue(tenant, conversation, null);
+          fallbackSucceeded = true;
+          logger.info('[Webhook] Fallback succeeded: conversation transferred to queue', {
+            conversationId: conversation.id,
+            attempt
+          });
+          break;
+        } catch (fallbackErr) {
+          logger.warn(`[Webhook] Fallback attempt ${attempt}/${maxRetries} failed:`, {
+            conversationId: conversation.id,
+            error: fallbackErr.message,
+            attempt
+          });
+
+          // Wait before retry (exponential backoff: 100ms, 200ms, 400ms)
+          if (attempt < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+          }
         }
-      } catch (fallbackErr) {
-        logger.error('[Webhook] Fallback to queue also failed:', fallbackErr.message);
+      }
+
+      // Final fallback: Se todas as retries falharem, marca a conversa com status QUEUED manualmente
+      if (!fallbackSucceeded) {
+        logger.error('[Webhook] All fallback attempts failed - forcing manual queue assignment', {
+          conversationId: conversation.id
+        });
+
+        try {
+          // Forçar para QUEUED para que próximo webhook ou agente manual pegue
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              status: 'QUEUED',
+              flowState: null,
+              metadata: {
+                ...conversation.metadata,
+                botFailedAt: new Date().toISOString(),
+                botError: err.message
+              }
+            }
+          });
+
+          logger.warn('[Webhook] Conversation forcibly moved to QUEUED', {
+            conversationId: conversation.id
+          });
+
+          // Notificar supervisores via socket
+          io?.to(`tenant:${tenant.id}`).emit('bot_failure_manual_queue', {
+            conversationId: conversation.id,
+            contactPhone: senderPhone,
+            reason: 'Bot execution and automatic transfer both failed',
+            timestamp: new Date()
+          });
+        } catch (manualQueueErr) {
+          logger.error('[Webhook] CRITICAL: Even manual queue assignment failed!', {
+            conversationId: conversation.id,
+            error: manualQueueErr.message
+          });
+          // At this point conversation is stuck - needs manual intervention
+        }
       }
     }
   }
 
   static async processStatus(tenant, status, io) {
-    // Handle status updates (delivered, read, sent)
+    // Handle status updates (delivered, read, sent, failed)
     const waId = status.id;
-    const newStatus = status.status; // sent, delivered, read
+    const newStatus = status.status; // sent, delivered, read, failed
 
     if (!waId) {
+      logger.warn('[Webhook] Status update received without waId');
+      return;
+    }
+
+    // Validate status enum
+    const VALID_STATUSES = ['sent', 'delivered', 'read', 'failed'];
+    if (!VALID_STATUSES.includes(newStatus)) {
+      logger.warn('[Webhook] Invalid status received from Meta:', {
+        waId,
+        receivedStatus: newStatus,
+        validStatuses: VALID_STATUSES
+      });
       return;
     }
 
@@ -382,12 +479,47 @@ class WebhookController {
 
       if (!message) {
         // Message sent before tracking started — silently ignore
+        logger.debug('[Webhook] Status update for untracked message', {
+          waId,
+          status: newStatus
+        });
         return;
       }
 
+      // Don't downgrade status (read → delivered is invalid progression)
+      const statusRank = { sent: 0, delivered: 1, read: 2, failed: -1 };
+      const currentRank = statusRank[message.status] ?? 0;
+      const newRank = statusRank[newStatus] ?? 0;
+
+      if (newRank < currentRank && newStatus !== 'failed') {
+        logger.warn('[Webhook] Invalid status progression - rejecting downgrade', {
+          waId,
+          currentStatus: message.status,
+          attemptedStatus: newStatus
+        });
+        return;
+      }
+
+      // Update with timestamp when status changed
       await prisma.message.update({
         where: { id: message.id },
-        data: { status: newStatus }
+        data: {
+          status: newStatus,
+          statusUpdatedAt: new Date(),
+          ...(newStatus === 'failed' && status.errors && {
+            metadata: {
+              ...message.metadata,
+              failureReason: status.errors?.[0]?.message,
+              failureCode: status.errors?.[0]?.code
+            }
+          })
+        }
+      });
+
+      logger.debug('[Webhook] Message status updated', {
+        waId,
+        status: newStatus,
+        messageId: message.id
       });
 
       if (io) {
@@ -395,11 +527,16 @@ class WebhookController {
           id: message.id,
           waId: waId,
           status: newStatus,
-          conversationId: message.conversationId
+          conversationId: message.conversationId,
+          timestamp: new Date()
         });
       }
     } catch (error) {
-      logger.error('Error updating message status:', error);
+      logger.error('[Webhook] Error updating message status:', {
+        waId,
+        status: newStatus,
+        error: error.message
+      });
     }
   }
 }
