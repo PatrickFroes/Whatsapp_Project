@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 const bcrypt = require('bcryptjs');
 
 class SuperAdminController {
@@ -14,7 +15,7 @@ class SuperAdminController {
       });
       res.json(tenants);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Failed to list tenants' });
     }
   }
@@ -75,7 +76,7 @@ class SuperAdminController {
 
       res.status(201).json(result);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Failed to create tenant' });
     }
   }
@@ -115,7 +116,7 @@ class SuperAdminController {
       });
       res.json(tenant);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Failed to update Tenant' });
     }
   }
@@ -175,7 +176,7 @@ class SuperAdminController {
         }
       });
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Analytics Error' });
     }
   }
@@ -255,7 +256,7 @@ class SuperAdminController {
         details: stats
       });
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Error fetching metrics' });
     }
   }

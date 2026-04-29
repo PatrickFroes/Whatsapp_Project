@@ -2,7 +2,8 @@
  * BusinessHoursController - Configuração de horário comercial
  */
 
-const BusinessHoursService = require('../services/BusinessHoursService');
+const BusinessHoursService = const logger = require('../utils/logger');
+const '../services/BusinessHoursService');
 
 class BusinessHoursController {
   /**
@@ -27,7 +28,7 @@ class BusinessHoursController {
 
       res.json(config);
     } catch (error) {
-      console.error('Get business hours failed:', error);
+      logger.error('Get business hours failed:', error);
       res.status(500).json({ error: 'Failed to get business hours' });
     }
   }
@@ -48,7 +49,7 @@ class BusinessHoursController {
 
       res.json(config);
     } catch (error) {
-      console.error('Update business hours failed:', error);
+      logger.error('Update business hours failed:', error);
       res.status(500).json({ error: 'Failed to update business hours' });
     }
   }
@@ -65,7 +66,7 @@ class BusinessHoursController {
 
       res.json(result);
     } catch (error) {
-      console.error('Check business hours failed:', error);
+      logger.error('Check business hours failed:', error);
       res.status(500).json({ error: 'Failed to check business hours' });
     }
   }
@@ -88,7 +89,7 @@ class BusinessHoursController {
 
       res.json(formatted);
     } catch (error) {
-      console.error('Get formatted schedule failed:', error);
+      logger.error('Get formatted schedule failed:', error);
       res.status(500).json({ error: 'Failed to get formatted schedule' });
     }
   }

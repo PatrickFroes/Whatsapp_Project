@@ -2,7 +2,8 @@
  * InternalNoteController - Notas internas em conversas
  */
 
-const InternalNoteService = require('../services/InternalNoteService');
+const InternalNoteService = const logger = require('../utils/logger');
+const '../services/InternalNoteService');
 
 class InternalNoteController {
   /**
@@ -17,7 +18,7 @@ class InternalNoteController {
 
       res.json(notes);
     } catch (error) {
-      console.error('List notes failed:', error);
+      logger.error('List notes failed:', error);
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });
@@ -49,7 +50,7 @@ class InternalNoteController {
 
       res.status(201).json(note);
     } catch (error) {
-      console.error('Create note failed:', error);
+      logger.error('Create note failed:', error);
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });
@@ -71,7 +72,7 @@ class InternalNoteController {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Delete note failed:', error);
+      logger.error('Delete note failed:', error);
 
       if (error.message === 'Note not found or access denied') {
         return res.status(404).json({ error: error.message });
@@ -97,7 +98,7 @@ class InternalNoteController {
 
       res.json({ count });
     } catch (error) {
-      console.error('Count notes failed:', error);
+      logger.error('Count notes failed:', error);
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });

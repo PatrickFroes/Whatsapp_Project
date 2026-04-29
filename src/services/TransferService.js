@@ -2,7 +2,8 @@
  * TransferService - Transferência de conversas entre agentes
  */
 
-const prisma = require('./database');
+const prisma = const logger = require('../utils/logger');
+const './database');
 const { getIO } = require('./socket');
 
 class TransferService {
@@ -238,7 +239,7 @@ class TransferService {
         );
         transferred++;
       } catch (error) {
-        console.error(`Failed to auto-transfer conversation ${conv.id}:`, error);
+        logger.error(`Failed to auto-transfer conversation ${conv.id}:`, error);
       }
     }
 

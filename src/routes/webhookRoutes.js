@@ -1,4 +1,5 @@
-const express = require('express');
+const express = const logger = require('../utils/logger');
+const 'express');
 const router = express.Router();
 const WebhookController = require('../controllers/WebhookController');
 const { validateWebhookHmac } = require('../middleware/webhookHmac.middleware');
@@ -24,35 +25,35 @@ const { webhookLimiter } = require('../middleware/rateLimiters');
 
 // Debug logging middleware
 router.use((req, res, next) => {
-  console.log(`[Webhook Route] ${req.method} request received at ${new Date().toISOString()}`);
+  logger.debug(`[Webhook Route] ${req.method} request received at ${new Date().toISOString()}`);
   next();
 });
 
 router.get('/', (req, res, next) => {
-  console.log('[Webhook GET] Verification request:', req.query);
+  logger.debug('[Webhook GET] Verification request:', req.query);
   WebhookController.verify(req, res, next);
 });
 
 // Suportar também /whatsapp para compatibilidade
 router.get('/whatsapp', (req, res, next) => {
-  console.log('[Webhook GET /whatsapp] Verification request:', req.query);
+  logger.debug('[Webhook GET /whatsapp] Verification request:', req.query);
   WebhookController.verify(req, res, next);
 });
 
 router.post('/', (req, res, next) => {
-  console.log('[Webhook POST] Event received, passing to webhookLimiter');
+  logger.debug('[Webhook POST] Event received, passing to webhookLimiter');
   next();
 }, webhookLimiter, (req, res, next) => {
-  console.log('[Webhook POST] Passed rate limiter, validating HMAC');
+  logger.debug('[Webhook POST] Passed rate limiter, validating HMAC');
   next();
 }, validateWebhookHmac, WebhookController.handle);
 
 // Suportar também /whatsapp para POST
 router.post('/whatsapp', (req, res, next) => {
-  console.log('[Webhook POST /whatsapp] Event received, passing to webhookLimiter');
+  logger.debug('[Webhook POST /whatsapp] Event received, passing to webhookLimiter');
   next();
 }, webhookLimiter, (req, res, next) => {
-  console.log('[Webhook POST /whatsapp] Passed rate limiter, validating HMAC');
+  logger.debug('[Webhook POST /whatsapp] Passed rate limiter, validating HMAC');
   next();
 }, validateWebhookHmac, WebhookController.handle);
 

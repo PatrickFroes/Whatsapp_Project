@@ -9,7 +9,8 @@
  * - OFFLINE: Fora do sistema (não recebe nada, conversas transferidas automaticamente)
  */
 
-const prisma = require('./database');
+const prisma = const logger = require('../utils/logger');
+const './database');
 const TransferService = require('./TransferService');
 const QueueService = require('./QueueService');
 const { getIO } = require('./socket');
@@ -62,7 +63,7 @@ class AgentStatusService {
     const previousStatus = agent.workStatus;
     const effectiveTenantId = tenantId || agent.tenantId;
 
-    console.log(
+    logger.debug(
       `[AgentStatus] ${agent.name} (${agent.email}): ${previousStatus} → ${normalizedStatus}`
     );
 
@@ -123,28 +124,28 @@ class AgentStatusService {
    * Trata side-effects de mudança de status
    */
   static async handleStatusSideEffects(userId, newStatus, previousStatus, tenantId, agent, reason) {
-    console.log(`[AgentStatus] Processando side-effects: ${previousStatus} → ${newStatus}`);
+    logger.debug(`[AgentStatus] Processando side-effects: ${previousStatus} → ${newStatus}`);
 
     // 1. OFFLINE ou PAUSED: Auto-transfer de conversas ativas
     if (newStatus === 'OFFLINE' || newStatus === 'PAUSED') {
       const activeChats = agent._count.assignedConversations || 0;
 
       if (activeChats > 0) {
-        console.log(
+        logger.debug(
           `[AgentStatus] ${agent.name} tem ${activeChats} conversas ativas. Iniciando auto-transfer...`
         );
 
         try {
           const result = await TransferService.autoTransferOnOffline(userId, tenantId);
-          console.log('[AgentStatus] Auto-transfer completo:', result);
+          logger.debug('[AgentStatus] Auto-transfer completo:', result);
 
           // Notificar agente sobre transfers
           this.notifyAutoTransfer(tenantId, userId, result, newStatus, reason);
         } catch (error) {
-          console.error('[AgentStatus] Erro no auto-transfer:', error);
+          logger.error('[AgentStatus] Erro no auto-transfer:', error);
         }
       } else {
-        console.log(
+        logger.debug(
           `[AgentStatus] ${agent.name} não tem conversas ativas. Nenhum transfer necessário.`
         );
       }
@@ -152,17 +153,17 @@ class AgentStatusService {
 
     // 2. ONLINE: Processar fila
     if (newStatus === 'ONLINE') {
-      console.log(`[AgentStatus] ${agent.name} voltou ONLINE. Processando fila...`);
+      logger.debug(`[AgentStatus] ${agent.name} voltou ONLINE. Processando fila...`);
 
       // Fire and forget
       QueueService.processQueue(tenantId).catch((err) =>
-        console.error('[AgentStatus] Erro ao processar fila:', err)
+        logger.error('[AgentStatus] Erro ao processar fila:', err)
       );
     }
 
     // 3. AWAY ou BUSY: Apenas log
     if (newStatus === 'AWAY' || newStatus === 'BUSY') {
-      console.log(
+      logger.debug(
         `[AgentStatus] ${agent.name} mudou para ${newStatus}. Mantendo conversas atuais.`
       );
     }
@@ -196,7 +197,7 @@ class AgentStatusService {
       timestamp: payload.timestamp
     });
 
-    console.log(`[AgentStatus] Socket.io notificado: ${agent.name} → ${status}`);
+    logger.debug(`[AgentStatus] Socket.io notificado: ${agent.name} → ${status}`);
   }
 
   /**
@@ -224,7 +225,7 @@ class AgentStatusService {
       timestamp: new Date().toISOString()
     });
 
-    console.log(`[AgentStatus] Auto-transfer notificado: ${message}`);
+    logger.debug(`[AgentStatus] Auto-transfer notificado: ${message}`);
   }
 
   /**
@@ -427,7 +428,7 @@ class AgentStatusService {
     }
 
     // Fallback para defaults se estrutura for inesperada
-    console.warn('[AgentStatusService] pauseReasons em formato inesperado:', tenant.pauseReasons);
+    logger.warn('[AgentStatusService] pauseReasons em formato inesperado:', tenant.pauseReasons);
     return defaultReasons;
   }
 }

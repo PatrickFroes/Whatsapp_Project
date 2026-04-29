@@ -7,7 +7,8 @@
  * - Validar credenciais
  */
 
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 const axios = require('axios');
 const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
 
@@ -50,7 +51,7 @@ class ConfigurationController {
 
       res.json(statusOnly);
     } catch (error) {
-      console.error('[Configuration] GET error:', error);
+      logger.error('[Configuration] GET error:', error);
       res.status(500).json({ error: 'Failed to fetch configuration' });
     }
   }
@@ -117,7 +118,7 @@ class ConfigurationController {
 
       // Verificar se sincronização funcionou
       if (phoneNumberId && updatedTenant.waPhoneId !== phoneNumberId) {
-        console.warn(
+        logger.warn(
           `[Configuration] Sync warning: waPhoneId (${updatedTenant.waPhoneId}) !== phoneNumberId (${phoneNumberId})`
         );
         return res.status(500).json({
@@ -160,7 +161,7 @@ class ConfigurationController {
         }
       });
     } catch (error) {
-      console.error('[Configuration] SAVE error:', error);
+      logger.error('[Configuration] SAVE error:', error);
 
       if (error.name === 'ZodError') {
         return res.status(400).json({
@@ -266,7 +267,7 @@ class ConfigurationController {
         });
       }
     } catch (error) {
-      console.error('[Configuration] VALIDATE error:', error);
+      logger.error('[Configuration] VALIDATE error:', error);
       res.status(500).json({ error: 'Failed to validate configuration' });
     }
   }

@@ -149,7 +149,7 @@ class AuthController {
       if (!isValidValues) {
         logger.warn(`[LOGIN DEBUG] Password mismatch for user: ${validatedEmail}`);
         // Registrar tentativa falhada no novo sistema (por device, não por IP)
-        recordFailedLogin(validatedEmail, req.deviceId);
+        await recordFailedLogin(validatedEmail, req.deviceId);
         return res.status(401).json({ error: 'Credenciais inválidas' });
       }
 
@@ -161,7 +161,7 @@ class AuthController {
       // await prisma.user.update(...)
       
       // Limpar tentativas falhadas pois o login foi bem-sucedido
-      clearLoginAttempts(validatedEmail, req.deviceId);
+      await clearLoginAttempts(validatedEmail, req.deviceId);
 
       const token = jwt.sign(
         { userId: user.id, tenantId: user.tenantId, role: user.role },

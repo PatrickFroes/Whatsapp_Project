@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 const FlowEngine = require('../services/FlowEngine');
 
 class WebhookController {
@@ -16,7 +17,7 @@ class WebhookController {
    * A validação real ocorre em POST via HMAC (header X-Hub-Signature-256)
    */
   static async verify(req, res) {
-    console.log('🔍 [Webhook VERIFY] Raw request:', {
+    logger.debug('🔍 [Webhook VERIFY] Raw request:', {
       method: req.method,
       url: req.url,
       originalUrl: req.originalUrl,
@@ -29,12 +30,12 @@ class WebhookController {
     const verifyToken = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    console.log('🔍 [Webhook VERIFY] Parsed params:', { mode, verifyToken, challenge });
+    logger.debug('🔍 [Webhook VERIFY] Parsed params:', { mode, verifyToken, challenge });
 
     if (mode !== 'subscribe' || !challenge || !verifyToken) {
-      console.warn('[Webhook] Invalid verification request payload');
-      console.warn('   Expected: hub.mode=subscribe, hub.verify_token=<token>, hub.challenge=<challenge>');
-      console.warn(`   Received: mode=${mode}, token=${verifyToken}, challenge=${challenge}`);
+      logger.warn('[Webhook] Invalid verification request payload');
+      logger.warn('   Expected: hub.mode=subscribe, hub.verify_token=<token>, hub.challenge=<challenge>');
+      logger.warn(`   Received: mode=${mode}, token=${verifyToken}, challenge=${challenge}`);
       return res.sendStatus(403);
     }
 
@@ -46,14 +47,14 @@ class WebhookController {
       });
 
       if (!config) {
-        console.warn('[Webhook] Verification failed: unknown verify token');
+        logger.warn('[Webhook] Verification failed: unknown verify token');
         return res.sendStatus(403);
       }
 
-      console.log(`[Webhook] Subscription verified for tenant ${config.tenantId}`);
+      logger.debug(`[Webhook] Subscription verified for tenant ${config.tenantId}`);
       return res.status(200).send(challenge);
     } catch (error) {
-      console.error('[Webhook] Verification error:', error);
+      logger.error('[Webhook] Verification error:', error);
       return res.sendStatus(500);
     }
   }
@@ -79,7 +80,7 @@ class WebhookController {
     const tenant = req.tenant;
 
     if (!tenant) {
-      console.error('[Webhook] Missing tenant from middleware');
+      logger.error('[Webhook] Missing tenant from middleware');
       return;
     }
 
@@ -115,7 +116,7 @@ class WebhookController {
           }
         }
       } catch (error) {
-        console.error('[Webhook] Error processing webhook:', error);
+        logger.error('[Webhook] Error processing webhook:', error);
       }
     }
   }
@@ -138,7 +139,7 @@ class WebhookController {
       'order'
     ];
     if (!CONVERSATIONAL_TYPES.includes(msg.type)) {
-      console.log(`[Webhook] Skipping non-conversational event type="${msg.type}" waId=${msg.id}`);
+      logger.debug(`[Webhook] Skipping non-conversational event type="${msg.type}" waId=${msg.id}`);
       return;
     }
 
@@ -150,7 +151,7 @@ class WebhookController {
         select: { id: true }
       });
       if (alreadyProcessed) {
-        console.log(`[Webhook] Duplicate message ignored (already processed): waId=${msg.id}`);
+        logger.debug(`[Webhook] Duplicate message ignored (already processed): waId=${msg.id}`);
         return;
       }
     }
@@ -185,9 +186,9 @@ class WebhookController {
           where: { id: contact.id },
           data: { name: contactName }
         });
-        console.log(`[Webhook] Contact name updated: ${senderPhone} → ${contactName}`);
+        logger.debug(`[Webhook] Contact name updated: ${senderPhone} → ${contactName}`);
       } catch (nameUpdateErr) {
-        console.warn('[Webhook] Failed to update contact name:', nameUpdateErr.message);
+        logger.warn('[Webhook] Failed to update contact name:', nameUpdateErr.message);
       }
     }
 
@@ -215,7 +216,7 @@ class WebhookController {
       conversation.status === 'QUEUED' &&
       conversation.flowState?.waitingForBusiness === true
     ) {
-      console.log(
+      logger.debug(
         `[Webhook] Client messaged a waitingForBusiness conversation. Resetting to BOT: ${conversation.id}`
       );
       conversation = await prisma.conversation.update({
@@ -236,7 +237,7 @@ class WebhookController {
           lastMessageAt: new Date()
         }
       });
-      console.log(`[Webhook] New conversation created: ${conversation.id} for ${senderPhone}`);
+      logger.debug(`[Webhook] New conversation created: ${conversation.id} for ${senderPhone}`);
     }
 
     // 4. Save Message
@@ -342,7 +343,7 @@ class WebhookController {
     try {
       await FlowEngine.process(tenant, conversation, savedMessage);
     } catch (err) {
-      console.error('[Webhook] Bot Execution Failed:', {
+      logger.error('[Webhook] Bot Execution Failed:', {
         conversationId: conversation.id,
         contactPhone: senderPhone,
         error: err.message
@@ -354,11 +355,11 @@ class WebhookController {
           select: { status: true }
         });
         if (currentConv && currentConv.status === 'BOT') {
-          console.log('[Webhook] Fallback: transferring conversation to queue after bot failure');
+          logger.debug('[Webhook] Fallback: transferring conversation to queue after bot failure');
           await FlowEngine.transferToQueue(tenant, conversation, null);
         }
       } catch (fallbackErr) {
-        console.error('[Webhook] Fallback to queue also failed:', fallbackErr.message);
+        logger.error('[Webhook] Fallback to queue also failed:', fallbackErr.message);
       }
     }
   }
@@ -397,7 +398,7 @@ class WebhookController {
         });
       }
     } catch (error) {
-      console.error('Error updating message status:', error);
+      logger.error('Error updating message status:', error);
     }
   }
 }

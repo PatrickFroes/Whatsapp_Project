@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 const axios = require('axios');
 
 class TemplateController {
@@ -108,7 +109,7 @@ class TemplateController {
 
       res.json({ success: true, count, total_fetched: data.length });
     } catch (e) {
-      console.error('Template Sync Error:', e.response?.data || e.message);
+      logger.error('Template Sync Error:', e.response?.data || e.message);
       res.status(500).json({ error: 'Failed to sync with Meta. Check permissions.' });
     }
   }

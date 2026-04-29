@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 
 /**
  * Controller para gerenciamento de histórico de conversas
@@ -109,7 +110,7 @@ class HistoryController {
         sessions: sessionsData
       });
     } catch (error) {
-      console.error('[History] Get contact sessions error:', error);
+      logger.error('[History] Get contact sessions error:', error);
       res.status(500).json({
         error: 'Erro ao buscar sessões',
         details: error.message
@@ -247,7 +248,7 @@ class HistoryController {
         }))
       });
     } catch (error) {
-      console.error('[History] Get session messages error:', error);
+      logger.error('[History] Get session messages error:', error);
       res.status(500).json({
         error: 'Erro ao buscar mensagens',
         details: error.message
@@ -373,7 +374,7 @@ class HistoryController {
         }
       });
     } catch (error) {
-      console.error('[History] Get contact summary error:', error);
+      logger.error('[History] Get contact summary error:', error);
       res.status(500).json({
         error: 'Erro ao buscar resumo',
         details: error.message

@@ -3,7 +3,8 @@
  * Suporta: imagens, vídeos, documentos, áudios
  */
 
-const axios = require('axios');
+const axios = const logger = require('../utils/logger');
+const 'axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
@@ -74,7 +75,7 @@ async function getCredentials(tenant) {
       url: `https://graph.facebook.com/v18.0/${config.phoneNumberId}`
     };
   } catch (error) {
-    console.error('🔍 [MediaService] getCredentials failed:', error.message);
+    logger.error('🔍 [MediaService] getCredentials failed:', error.message);
     throw error;
   }
 }
@@ -156,7 +157,7 @@ class MediaService {
       formData.append('messaging_product', 'whatsapp');
 
       // Upload
-      console.log(`🔍 [MediaService] Uploading media for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
+      logger.debug(`🔍 [MediaService] Uploading media for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
       const response = await axios.post(uploadUrl, formData, {
         headers: {
           ...formData.getHeaders(),
@@ -169,7 +170,7 @@ class MediaService {
       // Limpar arquivo temporário
       if (file.path) {
         await unlinkAsync(file.path).catch((err) =>
-          console.warn('Failed to delete temp file:', err)
+          logger.warn('Failed to delete temp file:', err)
         );
       }
 
@@ -186,7 +187,7 @@ class MediaService {
         await unlinkAsync(file.path).catch(() => {});
       }
 
-      console.error('WhatsApp media upload failed:', error.response?.data || error.message);
+      logger.error('WhatsApp media upload failed:', error.response?.data || error.message);
       throw new Error('Failed to upload media to WhatsApp');
     }
   }
@@ -203,7 +204,7 @@ class MediaService {
 
       // 1. Obter URL da mídia
       const mediaUrl = `https://graph.facebook.com/v18.0/${mediaId}`;
-      console.log(`🔍 [MediaService] Downloading media for tenant: ${tenant.id}`);
+      logger.debug(`🔍 [MediaService] Downloading media for tenant: ${tenant.id}`);
       const response = await axios.get(mediaUrl, {
         headers: {
           Authorization: `Bearer ${credentials.token}`
@@ -228,7 +229,7 @@ class MediaService {
         buffer: fileResponse.data
       };
     } catch (error) {
-      console.error('WhatsApp media download failed:', error.response?.data || error.message);
+      logger.error('WhatsApp media download failed:', error.response?.data || error.message);
       throw new Error('Failed to download media from WhatsApp');
     }
   }
@@ -296,7 +297,7 @@ class MediaService {
         payload[mediaType].filename = filename;
       }
 
-      console.log(`🔍 [MediaService] Sending media message for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
+      logger.debug(`🔍 [MediaService] Sending media message for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
       const response = await axios.post(messageUrl, payload, {
         headers: {
           Authorization: `Bearer ${credentials.token}`,
@@ -306,7 +307,7 @@ class MediaService {
 
       return response.data;
     } catch (error) {
-      console.error('WhatsApp send media failed:', error.response?.data || error.message);
+      logger.error('WhatsApp send media failed:', error.response?.data || error.message);
       throw new Error('Failed to send media message');
     }
   }
@@ -344,7 +345,7 @@ class MediaService {
         payload[mediaType].filename = filename;
       }
 
-      console.log(`🔍 [MediaService] Sending media by URL for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
+      logger.debug(`🔍 [MediaService] Sending media by URL for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
       const response = await axios.post(messageUrl, payload, {
         headers: {
           Authorization: `Bearer ${credentials.token}`,
@@ -354,7 +355,7 @@ class MediaService {
 
       return response.data;
     } catch (error) {
-      console.error('WhatsApp send media by URL failed:', error.response?.data || error.message);
+      logger.error('WhatsApp send media by URL failed:', error.response?.data || error.message);
       throw new Error('Failed to send media message by URL');
     }
   }
@@ -392,7 +393,7 @@ class MediaService {
         payload.location.address = address;
       }
 
-      console.log(`🔍 [MediaService] Sending location for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
+      logger.debug(`🔍 [MediaService] Sending location for tenant: ${tenant.id}, phoneNumberId: ${credentials.phoneNumberId}`);
       const response = await axios.post(messageUrl, payload, {
         headers: {
           Authorization: `Bearer ${credentials.token}`,
@@ -402,7 +403,7 @@ class MediaService {
 
       return response.data;
     } catch (error) {
-      console.error('WhatsApp send location failed:', error.response?.data || error.message);
+      logger.error('WhatsApp send location failed:', error.response?.data || error.message);
       throw new Error('Failed to send location message');
     }
   }

@@ -3,10 +3,10 @@ services:
   broker_app:
     image: broker-app:latest
     container_name: broker_app
-    restart: always
+    restart: on-failure:3
     environment:
       PORT: 3001
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
@@ -15,15 +15,16 @@ services:
       VERIFY_TOKEN: ${VERIFY_TOKEN}
       PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-      LOGIN_RATE_LIMIT_WINDOW_MINUTES: ${LOGIN_RATE_LIMIT_WINDOW_MINUTES:-5}
-      LOGIN_RATE_LIMIT_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_MAX_ATTEMPTS:-5}
-    depends_on:
-      - postgres
-      - redis
+      LOGIN_RATE_LIMIT_WINDOW_MINUTES: 5
+      LOGIN_RATE_LIMIT_MAX_ATTEMPTS: 5
     ports:
       - "3001:3001"
     networks:
       - broker_default
+    # Limites de recursos para 1 núcleo, 2GB RAM
+    cpus: '0.8'
+    mem_limit: 600m
+    memswap_limit: 800m
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
@@ -35,7 +36,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: broker_postgres
-    restart: always
+    restart: on-failure:3
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -46,34 +47,38 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - broker_default
+    cpus: '0.1'
+    mem_limit: 800m
 
   # Cache & Sessões & Filas
   redis:
     image: redis:7-alpine
     container_name: broker_redis
-    restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    restart: on-failure:3
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 300m --maxmemory-policy allkeys-lru
     ports:
       - '6379:6379'
     volumes:
       - redis_data:/data
     networks:
       - broker_default
+    cpus: '0.05'
+    mem_limit: 400m
 
   # UI de Administração do Banco (Opcional - mas útil)
   pgadmin:
     image: dpage/pgadmin4
     container_name: broker_pgadmin
-    restart: always
+    restart: on-failure:1
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-pgadmin@broker.amber.com.br}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-ChangeMeToPgAdminPassword789!@#}
     ports:
       - '8080:80'
-    depends_on:
-      - postgres
     networks:
       - broker_default
+    cpus: '0.05'
+    mem_limit: 300m
 
 volumes:
   postgres_data:

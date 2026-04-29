@@ -4,6 +4,41 @@ const logger = require('./src/utils/logger');
 const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
 const { correlationIdMiddleware } = require('./src/middleware/correlationId.middleware');
 
+// ============================================================================
+// OTIMIZAÇÃO DE MEMÓRIA PARA SERVIDOR SMALL (2GB RAM, 2 CORES)
+// ============================================================================
+if (process.env.NODE_ENV === 'production') {
+  // Limite máximo de memória heap
+  const heapLimit = 512 * 1024 * 1024; // 512MB
+  if (global.gc) {
+    // Garbage collection agressivo a cada 5 minutos
+    setInterval(() => {
+      if (global.gc) {
+        global.gc();
+        const memUsage = process.memoryUsage();
+        logger.debug('Garbage collection', {
+          heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+          heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB'
+        });
+      }
+    }, 5 * 60 * 1000);
+  }
+  
+  // Avisar se memória estiver alta
+  setInterval(() => {
+    const memUsage = process.memoryUsage();
+    const percentUsed = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    
+    if (percentUsed > 85) {
+      logger.warn('Memória alta', {
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+        percent: Math.round(percentUsed) + '%'
+      });
+    }
+  }, 30 * 1000);
+}
+
 process.on('uncaughtException', (err) => {
   logger.error('UNCAUGHT EXCEPTION', err);
 });
@@ -214,14 +249,28 @@ async function startServer() {
   });
 
   // ============================================================================
-  // PUBLIC PAGES
+  // PUBLIC PAGES & STATIC FILES
   // ============================================================================
-  // Serve static policy pages
-  app.get('/privacy', (req, res) => {
-    res.sendFile(__dirname + '/frontend/privacy.html');
-  });
-
+  // Serve static files from frontend folder
   app.use(express.static('frontend'));
+
+  // Serve policy pages (public routes)
+  app.get('/privacy', (req, res) => {
+    const privacyPath = require('path').join(__dirname, 'frontend', 'privacy.html');
+    
+    res.sendFile(privacyPath, (err) => {
+      if (err) {
+        logger.error('Erro ao servir privacy.html', {
+          path: privacyPath,
+          error: err.message,
+          code: err.code
+        });
+        res.status(404).json({ 
+          error: 'Arquivo de política de privacidade não encontrado'
+        });
+      }
+    });
+  });
 
   app.use((req, res, next) => {
     req.io = io;

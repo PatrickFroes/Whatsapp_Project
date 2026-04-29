@@ -2,7 +2,8 @@
  * QuickReplyController - CRUD de respostas rápidas
  */
 
-const QuickReplyService = require('../services/QuickReplyService');
+const QuickReplyService = const logger = require('../utils/logger');
+const '../services/QuickReplyService');
 
 class QuickReplyController {
   /**
@@ -28,7 +29,7 @@ class QuickReplyController {
 
       res.json(replies);
     } catch (error) {
-      console.error('List quick replies failed:', error);
+      logger.error('List quick replies failed:', error);
       res.status(500).json({ error: 'Failed to list quick replies' });
     }
   }
@@ -44,7 +45,7 @@ class QuickReplyController {
 
       res.json({ categories });
     } catch (error) {
-      console.error('List categories failed:', error);
+      logger.error('List categories failed:', error);
       res.status(500).json({ error: 'Failed to list categories' });
     }
   }
@@ -62,7 +63,7 @@ class QuickReplyController {
 
       res.json(quickReply);
     } catch (error) {
-      console.error('Get quick reply failed:', error);
+      logger.error('Get quick reply failed:', error);
       res.status(404).json({ error: error.message });
     }
   }
@@ -103,7 +104,7 @@ class QuickReplyController {
 
       res.status(201).json(quickReply);
     } catch (error) {
-      console.error('Create quick reply failed:', error);
+      logger.error('Create quick reply failed:', error);
 
       if (error.message === 'Shortcut already exists') {
         return res.status(409).json({ error: error.message });
@@ -129,7 +130,7 @@ class QuickReplyController {
 
       res.json(quickReply);
     } catch (error) {
-      console.error('Update quick reply failed:', error);
+      logger.error('Update quick reply failed:', error);
 
       if (error.message === 'Quick reply not found') {
         return res.status(404).json({ error: error.message });
@@ -155,7 +156,7 @@ class QuickReplyController {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Delete quick reply failed:', error);
+      logger.error('Delete quick reply failed:', error);
 
       if (error.message === 'Quick reply not found') {
         return res.status(404).json({ error: error.message });

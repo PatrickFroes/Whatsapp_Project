@@ -1,10 +1,11 @@
-const prisma = require('./database');
+const prisma = const logger = require('../utils/logger');
+const './database');
 const socketService = require('./socket');
 
 class QueueService {
   // Called when an agent comes ONLINE or finishes a chat
   static async processQueue(tenantId) {
-    console.log(`[QueueService] Processing queue for tenant ${tenantId}...`);
+    logger.debug(`[QueueService] Processing queue for tenant ${tenantId}...`);
 
     // 1. Get all QUEUED items for this tenant, ordered by waiting time (oldest first)
     const queuedItems = await prisma.conversation.findMany({
@@ -16,11 +17,11 @@ class QueueService {
     });
 
     if (queuedItems.length === 0) {
-      console.log('[QueueService] No items in queue.');
+      logger.debug('[QueueService] No items in queue.');
       return;
     }
 
-    console.log(`[QueueService] Found ${queuedItems.length} items in queue.`);
+    logger.debug(`[QueueService] Found ${queuedItems.length} items in queue.`);
 
     // 2. Iterate and try to assign
     for (const conversation of queuedItems) {
@@ -30,7 +31,7 @@ class QueueService {
       // client sending a NEW message, which WebhookController handles by resetting the
       // conversation back to BOT status and running FlowEngine.
       if (conversation.flowState?.waitingForBusiness === true) {
-        console.log(
+        logger.debug(
           `[QueueService] Skipping waitingForBusiness conversation ${conversation.id} — awaiting new client message`
         );
         continue;
@@ -44,7 +45,7 @@ class QueueService {
         if (deptValue && deptValue.length > 0) {
           targetSkill = deptValue;
         } else {
-          console.warn(
+          logger.warn(
             `[QueueService] Invalid/empty dept in flowState for conversation ${conversation.id}`
           );
         }
@@ -88,7 +89,7 @@ class QueueService {
   }
 
   static async assign(conversation, agent) {
-    console.log(`[QueueService] Assigning ${conversation.id} to ${agent.name}`);
+    logger.debug(`[QueueService] Assigning ${conversation.id} to ${agent.name}`);
 
     // SECURITY: Validate that agent belongs to same tenant as conversation
     if (agent.tenantId !== conversation.tenantId) {
@@ -108,7 +109,7 @@ class QueueService {
 
     // SECURITY: Verify the conversation after update
     if (updated.tenantId !== conversation.tenantId) {
-      console.error(
+      logger.error(
         `🔍 [QueueService] SECURITY: Conversation tenant mismatch after update`
       );
     }
@@ -126,7 +127,7 @@ class QueueService {
         });
       }
     } catch (e) {
-      console.error('[QueueService] Socket emit error:', e.message);
+      logger.error('[QueueService] Socket emit error:', e.message);
     }
   }
 }

@@ -1,4 +1,5 @@
-const axios = require('axios');
+const axios = const logger = require('../utils/logger');
+const 'axios');
 const prisma = require('./database');
 
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v18.0';
@@ -6,7 +7,7 @@ const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v18.0';
 // Helper to get credentials from Configuration
 async function getCredentials(tenant) {
   if (!tenant || !tenant.id) {
-    console.error('[WhatsApp] No tenant provided');
+    logger.error('[WhatsApp] No tenant provided');
     return null;
   }
 
@@ -16,12 +17,12 @@ async function getCredentials(tenant) {
   });
 
   if (!config) {
-    console.error(`[WhatsApp] No Configuration found for tenant: ${tenant.id}`);
+    logger.error(`[WhatsApp] No Configuration found for tenant: ${tenant.id}`);
     return null;
   }
 
   if (!config.phoneNumberId || !config.whatsappToken) {
-    console.error(`[WhatsApp] Missing credentials for tenant: ${tenant.id}`, {
+    logger.error(`[WhatsApp] Missing credentials for tenant: ${tenant.id}`, {
       phoneNumberId: config.phoneNumberId ? '✓' : '✗ MISSING',
       whatsappToken: config.whatsappToken ? '✓' : '✗ MISSING'
     });
@@ -37,14 +38,14 @@ async function getCredentials(tenant) {
 
 async function sendMessage(to, content, tenant = null) {
   if (!tenant) {
-    console.error('[WhatsApp] Tenant not provided - cannot send message');
+    logger.error('[WhatsApp] Tenant not provided - cannot send message');
     return null;
   }
 
   const credentials = await getCredentials(tenant);
 
   if (!credentials) {
-    console.error('[WhatsApp] Failed to get credentials for tenant', {
+    logger.error('[WhatsApp] Failed to get credentials for tenant', {
       tenantId: tenant.id,
       tenantName: tenant.name
     });
@@ -72,7 +73,7 @@ async function sendMessage(to, content, tenant = null) {
       data: dataPayload,
       headers: { Authorization: `Bearer ${credentials.token}` }
     });
-    console.log(`[WhatsApp] ✓ Mensagem enviada para ${to}`, {
+    logger.debug(`[WhatsApp] ✓ Mensagem enviada para ${to}`, {
       tenant: tenant.name,
       tenantId: tenant.id,
       phoneNumberId: credentials.phoneNumberId
@@ -80,7 +81,7 @@ async function sendMessage(to, content, tenant = null) {
     return response.data;
   } catch (error) {
     const errorData = error.response?.data || { message: error.message };
-    console.error(`[WhatsApp] ✗ Falha ao enviar para ${to}`, {
+    logger.error(`[WhatsApp] ✗ Falha ao enviar para ${to}`, {
       tenant: tenant.name,
       tenantId: tenant.id,
       phoneNumberId: credentials.phoneNumberId,

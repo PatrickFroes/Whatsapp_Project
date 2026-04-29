@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 
 const QueueService = require('../services/QueueService');
 const AgentStatusService = require('../services/AgentStatusService');
@@ -75,7 +76,7 @@ class ChatController {
         }
       });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to list chats' });
     }
   }
@@ -120,7 +121,7 @@ class ChatController {
 
       res.json(conversation.messages);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to get messages' });
     }
   }
@@ -202,7 +203,7 @@ class ChatController {
       let waMessageId = null;
 
       try {
-        console.log(`🔍 [ChatController] Sending message for tenant: ${tenantId}, phoneNumberId: ${config.phoneNumberId}`);
+        logger.debug(`🔍 [ChatController] Sending message for tenant: ${tenantId}, phoneNumberId: ${config.phoneNumberId}`);
         const metaRes = await axios.post(url, payload, {
           headers: { Authorization: `Bearer ${config.whatsappToken}` }
         });
@@ -211,7 +212,7 @@ class ChatController {
           waMessageId = metaRes.data.messages[0].id;
         }
       } catch (metaError) {
-        console.error('Meta API Error:', metaError.response?.data || metaError.message);
+        logger.error('Meta API Error:', metaError.response?.data || metaError.message);
         return res
           .status(502)
           .json({ error: 'Failed to send to WhatsApp', details: metaError.response?.data });
@@ -246,7 +247,7 @@ class ChatController {
 
       res.status(201).json(message);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -264,7 +265,7 @@ class ChatController {
         lastSeenAt: user.lastSeenAt
       });
     } catch (e) {
-      console.error('[ChatController] getStatus error:', e);
+      logger.error('[ChatController] getStatus error:', e);
       res.status(500).json({ error: 'Failed to get status' });
     }
   }
@@ -288,7 +289,7 @@ class ChatController {
 
       res.json(result);
     } catch (e) {
-      console.error('[ChatController] updateStatus error:', e);
+      logger.error('[ChatController] updateStatus error:', e);
       res.status(400).json({ error: e.message || 'Failed to update status' });
     }
   }
@@ -353,7 +354,7 @@ class ChatController {
 
       res.json({ success: true });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to resolve' });
     }
   }
@@ -364,7 +365,7 @@ class ChatController {
       const reasons = await AgentStatusService.getPauseReasons(req.user.tenantId);
       res.json({ reasons });
     } catch (e) {
-      console.error('[ChatController] getPauses error:', e);
+      logger.error('[ChatController] getPauses error:', e);
       res.status(500).json({ error: e.message });
     }
   }

@@ -57,11 +57,11 @@ function structuredLoggingMiddleware(req, res, next) {
 
     // Log em nível apropriado
     if (res.statusCode >= 500) {
-      console.error('[Request]', JSON.stringify(logData));
+      logger.error('[Request]', JSON.stringify(logData));
     } else if (res.statusCode >= 400) {
-      console.warn('[Request]', JSON.stringify(logData));
+      logger.warn('[Request]', JSON.stringify(logData));
     } else {
-      console.log('[Request]', JSON.stringify(logData));
+      logger.debug('[Request]', JSON.stringify(logData));
     }
 
     return originalJson.call(this, data);

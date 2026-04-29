@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 const bcrypt = require('bcryptjs');
 
 class AdminController {
@@ -38,7 +39,7 @@ class AdminController {
         }
       });
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to load config' });
     }
   }
@@ -57,7 +58,7 @@ class AdminController {
 
       res.json(tenant.flows || defaultFlow);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed' });
     }
   }
@@ -159,7 +160,7 @@ class AdminController {
 
       res.status(201).json(cleanAgent);
     } catch (error) {
-      console.error('Error creating agent:', error);
+      logger.error('Error creating agent:', error);
       res.status(500).json({ error: 'Failed to create agent', details: error.message });
     }
   }
@@ -212,7 +213,7 @@ class AdminController {
 
       res.json(formatted);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to update agent' });
     }
   }
@@ -231,7 +232,7 @@ class AdminController {
       });
       res.sendStatus(204);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to delete agent' });
     }
   }
@@ -276,7 +277,7 @@ class AdminController {
       });
       res.sendStatus(204);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       res.status(500).json({ error: 'Failed to delete skill' });
     }
   }

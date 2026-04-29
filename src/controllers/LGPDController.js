@@ -1,4 +1,5 @@
-const prisma = require('../services/database');
+const prisma = const logger = require('../utils/logger');
+const '../services/database');
 
 /**
  * Controller para endpoints de conformidade com LGPD
@@ -13,7 +14,7 @@ class LGPDController {
     try {
       const { userId, tenantId } = req.user;
 
-      console.log(`[LGPD] Export data request - User: ${userId}`);
+      logger.debug(`[LGPD] Export data request - User: ${userId}`);
 
       // Buscar dados do usuário
       const user = await prisma.user.findUnique({
@@ -175,11 +176,11 @@ class LGPDController {
         }
       };
 
-      console.log(`[LGPD] Data exported successfully - User: ${userId}`);
+      logger.debug(`[LGPD] Data exported successfully - User: ${userId}`);
 
       res.json(exportData);
     } catch (error) {
-      console.error('[LGPD] Export error:', error);
+      logger.error('[LGPD] Export error:', error);
       res.status(500).json({
         error: 'Erro ao exportar dados',
         details: error.message
@@ -195,7 +196,7 @@ class LGPDController {
     try {
       const { userId, tenantId, role } = req.user;
 
-      console.log(`[LGPD] Delete account request - User: ${userId}`);
+      logger.debug(`[LGPD] Delete account request - User: ${userId}`);
 
       // Verificar se usuário existe
       const user = await prisma.user.findUnique({
@@ -253,7 +254,7 @@ class LGPDController {
         where: { id: userId }
       });
 
-      console.log(`[LGPD] Account deleted successfully - User: ${userId}`);
+      logger.debug(`[LGPD] Account deleted successfully - User: ${userId}`);
 
       res.json({
         success: true,
@@ -261,7 +262,7 @@ class LGPDController {
         deleted_at: new Date().toISOString()
       });
     } catch (error) {
-      console.error('[LGPD] Delete error:', error);
+      logger.error('[LGPD] Delete error:', error);
       res.status(500).json({
         error: 'Erro ao deletar conta',
         details: error.message
@@ -308,7 +309,7 @@ class LGPDController {
 
       res.json(consents);
     } catch (error) {
-      console.error('[LGPD] Get consents error:', error);
+      logger.error('[LGPD] Get consents error:', error);
       res.status(500).json({
         error: 'Erro ao buscar consentimentos',
         details: error.message
@@ -331,7 +332,7 @@ class LGPDController {
 
       // TODO: Implementar tabela de consentimentos no Prisma
       // Por enquanto, apenas log
-      console.log(`[LGPD] Consent update - User: ${userId}`, consents);
+      logger.debug(`[LGPD] Consent update - User: ${userId}`, consents);
 
       res.json({
         success: true,
@@ -339,7 +340,7 @@ class LGPDController {
         updated_at: new Date().toISOString()
       });
     } catch (error) {
-      console.error('[LGPD] Update consents error:', error);
+      logger.error('[LGPD] Update consents error:', error);
       res.status(500).json({
         error: 'Erro ao atualizar consentimentos',
         details: error.message

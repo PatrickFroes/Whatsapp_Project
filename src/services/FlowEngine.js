@@ -1,4 +1,5 @@
-const prisma = require('./database');
+const prisma = const logger = require('../utils/logger');
+const './database');
 const whatsappService = require('./whatsapp');
 const BusinessHoursService = require('./BusinessHoursService');
 const SafeEvaluator = require('./SafeEvaluator');
@@ -37,14 +38,14 @@ class FlowEngine {
         where: { id: conversation.id }
       });
       if (!fresh) {
-        console.warn(`[FlowEngine] Conversation ${conversation.id} not found in DB, skipping`);
+        logger.warn(`[FlowEngine] Conversation ${conversation.id} not found in DB, skipping`);
         return;
       }
       conversation = fresh;
 
       // 2. Validar status
       if (conversation.status !== 'BOT') {
-        console.log(
+        logger.debug(
           `[FlowEngine] Conversation ${conversation.id} não está em modo BOT. Status: ${conversation.status}`
         );
         return;
@@ -78,7 +79,7 @@ class FlowEngine {
       const flow = flows.uras?.[activeFlowId];
 
       if (!flow || !flow.start) {
-        console.error('[FlowEngine] Flow não configurado ou inválido');
+        logger.error('[FlowEngine] Flow não configurado ou inválido');
         await FlowEngine.sendMessage(
           conversation,
           'Olá! Um momento por favor, estou conectando você com um atendente.',
@@ -92,7 +93,7 @@ class FlowEngine {
       let state = conversation.flowState;
 
       if (!state || typeof state !== 'object') {
-        console.warn('[FlowEngine] Invalid flowState detected, reinitializing');
+        logger.warn('[FlowEngine] Invalid flowState detected, reinitializing');
         state = {
           nodeId: 'start',
           step: 0,
@@ -102,7 +103,7 @@ class FlowEngine {
       } else {
         // Garantir que data sempre existe e é um objeto válido
         if (!state.data || typeof state.data !== 'object') {
-          console.warn('[FlowEngine] Corrupted flowState.data, recovering...');
+          logger.warn('[FlowEngine] Corrupted flowState.data, recovering...');
           state.data = state.data || {};
         }
         if (!state.history || !Array.isArray(state.history)) {
@@ -116,7 +117,7 @@ class FlowEngine {
       });
 
       if (!contact || contact.tenantId !== tenant.id) {
-        console.error('[FlowEngine] SECURITY: Contact access denied - cross-tenant attempt', {
+        logger.error('[FlowEngine] SECURITY: Contact access denied - cross-tenant attempt', {
           contactId: conversation.contactId,
           contactTenantId: contact?.tenantId,
           requestedTenantId: tenant.id
@@ -138,7 +139,7 @@ class FlowEngine {
 
       // 6. Primeira interação: executar nó inicial
       if (!state.waitingFor) {
-        console.log('[FlowEngine] Primeira interação - executando nó start');
+        logger.debug('[FlowEngine] Primeira interação - executando nó start');
         await FlowEngine.executeNode(tenant, conversation, flow, state, message);
         return;
       }
@@ -146,7 +147,7 @@ class FlowEngine {
       // 7. Processar resposta do usuário
       await FlowEngine.handleUserInput(tenant, conversation, flow, state, message);
     } catch (error) {
-      console.error('[FlowEngine] Erro crítico:', error);
+      logger.error('[FlowEngine] Erro crítico:', error);
       await FlowEngine.sendMessage(
         conversation,
         'Desculpe, ocorreu um erro inesperado. Vou transferir você para um atendente.',
@@ -162,7 +163,7 @@ class FlowEngine {
   static async handleUserInput(tenant, conversation, flow, state, message) {
     // SECURITY: Validate message.content is not null/undefined
     if (!message || !message.content || typeof message.content !== 'string') {
-      console.warn('[FlowEngine] Invalid message content received', {
+      logger.warn('[FlowEngine] Invalid message content received', {
         conversationId: conversation.id,
         messageType: typeof message?.content,
         hasContent: !!message?.content
@@ -179,7 +180,7 @@ class FlowEngine {
 
     // Check if message is empty after trim
     if (input.length === 0) {
-      console.warn('[FlowEngine] Empty message received after trim');
+      logger.warn('[FlowEngine] Empty message received after trim');
       await FlowEngine.sendMessage(
         conversation,
         'Por favor, envie uma mensagem com conteúdo.',
@@ -190,14 +191,14 @@ class FlowEngine {
 
     const waitingType = state.waitingFor;
 
-    console.log(`[FlowEngine] Processando input. Esperando: ${waitingType}, Input: ${input}`);
+    logger.debug(`[FlowEngine] Processando input. Esperando: ${waitingType}, Input: ${input}`);
 
     // Coleta de dados
     if (waitingType === 'collect_data') {
       const dataKey = state.collectingKey;
       if (dataKey) {
         state.data[dataKey] = input;
-        console.log(`[FlowEngine] Coletado ${dataKey}: ${input}`);
+        logger.debug(`[FlowEngine] Coletado ${dataKey}: ${input}`);
 
         // Validação se configurada
         if (state.validationPattern) {
@@ -264,7 +265,7 @@ class FlowEngine {
 
       const node = flow[nodeId];
       if (!node) {
-        console.error(`[FlowEngine] Nó ${nodeId} não encontrado no flow`);
+        logger.error(`[FlowEngine] Nó ${nodeId} não encontrado no flow`);
         await FlowEngine.sendMessage(
           conversation,
           'Ocorreu um erro no fluxo. Reiniciando...',
@@ -276,7 +277,7 @@ class FlowEngine {
         return;
       }
 
-      console.log(`[FlowEngine] Executando nó: ${nodeId} (tipo: ${node.type})`);
+      logger.debug(`[FlowEngine] Executando nó: ${nodeId} (tipo: ${node.type})`);
 
       // Executar nó baseado no tipo
       const shouldContinue = await FlowEngine.executeNodeByType(
@@ -306,7 +307,7 @@ class FlowEngine {
     await FlowEngine.saveState(conversation, state);
 
     if (steps >= MAX_FLOW_STEPS) {
-      console.warn('[FlowEngine] Atingiu limite de steps. Possível loop infinito.');
+      logger.warn('[FlowEngine] Atingiu limite de steps. Possível loop infinito.');
       await FlowEngine.transferToQueue(tenant, conversation, null);
     }
   }
@@ -355,7 +356,7 @@ class FlowEngine {
         return false;
 
       default:
-        console.warn(`[FlowEngine] Tipo de nó desconhecido: ${type}`);
+        logger.warn(`[FlowEngine] Tipo de nó desconhecido: ${type}`);
         return true; // Continuar para próximo
     }
   }
@@ -415,7 +416,7 @@ class FlowEngine {
 
       return true; // Continuar para nó condicional
     } catch (error) {
-      console.error('[FlowEngine] Erro ao avaliar condição:', error);
+      logger.error('[FlowEngine] Erro ao avaliar condição:', error);
       return true; // Continuar para next
     }
   }
@@ -463,7 +464,7 @@ class FlowEngine {
    * Nó de chamada API
    */
   static async handleApiCallNode(tenant, conversation, state, node) {
-    console.log(`[FlowEngine] Executando API Call: ${node.api_method || 'GET'} ${node.api_url}`);
+    logger.debug(`[FlowEngine] Executando API Call: ${node.api_method || 'GET'} ${node.api_url}`);
 
     try {
       const url = FlowEngine.interpolate(node.api_url, state);
@@ -485,7 +486,7 @@ class FlowEngine {
         try {
           body = JSON.parse(interpolated);
         } catch (e) {
-          console.error('[FlowEngine] Erro ao parsear body da API:', e.message);
+          logger.error('[FlowEngine] Erro ao parsear body da API:', e.message);
           body = interpolated;
         }
       }
@@ -500,7 +501,7 @@ class FlowEngine {
         validateStatus: (status) => status < 500 // Não lançar erro para 4xx
       });
 
-      console.log(`[FlowEngine] API Response: ${response.status}`);
+      logger.debug(`[FlowEngine] API Response: ${response.status}`);
 
       // Salvar status code
       state.data['_api_status'] = response.status;
@@ -531,7 +532,7 @@ class FlowEngine {
         state.nodeId = node.on_success_next;
       }
     } catch (error) {
-      console.error('[FlowEngine] API Error:', error.message);
+      logger.error('[FlowEngine] API Error:', error.message);
       state.data['_api_error'] = error.message;
 
       if (node.on_error_message) {
@@ -560,7 +561,7 @@ class FlowEngine {
 
     if (key) {
       state.data[key] = value;
-      console.log(`[FlowEngine] Set ${key} = ${value}`);
+      logger.debug(`[FlowEngine] Set ${key} = ${value}`);
     }
 
     return true; // Continuar
@@ -704,11 +705,11 @@ class FlowEngine {
           flowState: null
         }
       });
-      console.log(
+      logger.debug(
         `[FlowEngine] Conversa ${conversation.id} encerrada (CLOSED). Próximo contato iniciará novo fluxo.`
       );
     } catch (error) {
-      console.error('[FlowEngine] Error closing conversation:', error);
+      logger.error('[FlowEngine] Error closing conversation:', error);
       throw error;
     }
   }
@@ -729,7 +730,7 @@ class FlowEngine {
     // Tentar processar fila imediatamente
     const QueueService = require('./QueueService');
     QueueService.processQueue(tenant.id).catch((err) =>
-      console.error('[FlowEngine] Queue process error:', err)
+      logger.error('[FlowEngine] Queue process error:', err)
     );
   }
 
@@ -737,7 +738,7 @@ class FlowEngine {
    * Atribui agente com skill específica usando AgentStatusService
    */
   static async assignAgent(tenant, conversation, skillName) {
-    console.log(`[FlowEngine] Buscando agente para skill: "${skillName}"`);
+    logger.debug(`[FlowEngine] Buscando agente para skill: "${skillName}"`);
 
     // 1. Resolver skill ID se especificado
     let skillId = null;
@@ -752,7 +753,7 @@ class FlowEngine {
       if (skill) {
         skillId = skill.id;
       } else {
-        console.log(`[FlowEngine] Skill "${skillName}" não encontrada`);
+        logger.debug(`[FlowEngine] Skill "${skillName}" não encontrada`);
       }
     }
 
@@ -761,7 +762,7 @@ class FlowEngine {
     const agents = await AgentStatusService.getAvailableAgents(tenant.id, skillId);
 
     if (agents.length === 0) {
-      console.log('[FlowEngine] Nenhum agente disponível');
+      logger.debug('[FlowEngine] Nenhum agente disponível');
       return false;
     }
 
@@ -777,7 +778,7 @@ class FlowEngine {
       }
     });
 
-    console.log(`[FlowEngine] Atribuído para ${agent.name}`);
+    logger.debug(`[FlowEngine] Atribuído para ${agent.name}`);
 
     // 5. Notificar via Socket.io - usar AMBOS os rooms
     try {
@@ -804,7 +805,7 @@ class FlowEngine {
         });
       }
     } catch (e) {
-      console.error('[FlowEngine] Socket emit error:', e);
+      logger.error('[FlowEngine] Socket emit error:', e);
     }
 
     return true;
@@ -821,7 +822,7 @@ class FlowEngine {
       });
 
       if (!contact) {
-        console.error('[FlowEngine] Contact not found', {
+        logger.error('[FlowEngine] Contact not found', {
           contactId: conversation.contactId,
           conversationId: conversation.id
         });
@@ -829,7 +830,7 @@ class FlowEngine {
       }
 
       if (contact.tenantId !== tenant.id) {
-        console.error('[FlowEngine] SECURITY: Contact cross-tenant access attempt blocked', {
+        logger.error('[FlowEngine] SECURITY: Contact cross-tenant access attempt blocked', {
           contactTenantId: contact.tenantId,
           requestedTenantId: tenant.id,
           contactId: contact.id
@@ -837,7 +838,7 @@ class FlowEngine {
         return;
       }
 
-      console.log(`[FlowEngine] Enviando mensagem para ${contact.phone}`);
+      logger.debug(`[FlowEngine] Enviando mensagem para ${contact.phone}`);
 
       await whatsappService.sendMessage(contact.phone, content, tenant);
 
@@ -862,7 +863,7 @@ class FlowEngine {
         }
       });
     } catch (error) {
-      console.error('[FlowEngine] Send Error:', error.message);
+      logger.error('[FlowEngine] Send Error:', error.message);
     }
   }
 
@@ -873,7 +874,7 @@ class FlowEngine {
     try {
       // Validate state before saving
       if (!state || typeof state !== 'object') {
-        console.error('[FlowEngine] Invalid state object, cannot save', typeof state);
+        logger.error('[FlowEngine] Invalid state object, cannot save', typeof state);
         return;
       }
 
@@ -882,7 +883,7 @@ class FlowEngine {
         data: { flowState: state }
       });
     } catch (error) {
-      console.error('[FlowEngine] Error saving state:', error);
+      logger.error('[FlowEngine] Error saving state:', error);
       throw error;
     }
   }
@@ -935,7 +936,7 @@ class FlowEngine {
 
       return SafeEvaluator.evaluate(normalized, variables);
     } catch (error) {
-      console.error('[FlowEngine] Erro ao avaliar condição:', error.message);
+      logger.error('[FlowEngine] Erro ao avaliar condição:', error.message);
       return false;
     }
   }

@@ -1,4 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = const logger = require('../utils/logger');
+const '@prisma/client');
 const prisma = new PrismaClient();
 const AgentStatusService = require('../services/AgentStatusService');
 
@@ -33,7 +34,7 @@ class SupervisorController {
 
       res.json({ stats, agents });
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Erro ao carregar visão da equipe' });
     }
   }
@@ -67,7 +68,7 @@ class SupervisorController {
 
       res.json(result);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Erro ao alterar status' });
     }
   }
@@ -107,7 +108,7 @@ class SupervisorController {
 
       res.json(formatted);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Erro ao listar conversas' });
     }
   }
@@ -145,7 +146,7 @@ class SupervisorController {
 
       res.json(formatted);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       res.status(500).json({ error: 'Erro ao buscar histórico' });
     }
   }

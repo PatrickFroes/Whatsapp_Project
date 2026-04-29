@@ -2,7 +2,8 @@
  * TransferController - Transferências de conversas
  */
 
-const TransferService = require('../services/TransferService');
+const TransferService = const logger = require('../utils/logger');
+const '../services/TransferService');
 const prisma = require('../services/database');
 
 class TransferController {
@@ -44,7 +45,7 @@ class TransferController {
 
       res.json(result);
     } catch (error) {
-      console.error('Transfer failed:', error);
+      logger.error('Transfer failed:', error);
       res.status(500).json({
         error: 'Failed to transfer conversation',
         details: error.message
@@ -84,7 +85,7 @@ class TransferController {
 
       res.json(result);
     } catch (error) {
-      console.error('Transfer to skill failed:', error);
+      logger.error('Transfer to skill failed:', error);
       res.status(500).json({
         error: 'Failed to transfer to skill',
         details: error.message
@@ -116,7 +117,7 @@ class TransferController {
 
       res.json(transfers);
     } catch (error) {
-      console.error('List transfers failed:', error);
+      logger.error('List transfers failed:', error);
       res.status(500).json({ error: 'Failed to list transfers' });
     }
   }
@@ -147,7 +148,7 @@ class TransferController {
 
       res.json(stats);
     } catch (error) {
-      console.error('Get agent stats failed:', error);
+      logger.error('Get agent stats failed:', error);
       res.status(500).json({ error: 'Failed to get agent stats' });
     }
   }
@@ -213,7 +214,7 @@ class TransferController {
 
       res.json(formatted);
     } catch (error) {
-      console.error('Get available agents failed:', error);
+      logger.error('Get available agents failed:', error);
       res.status(500).json({ error: 'Failed to get available agents' });
     }
   }
@@ -255,7 +256,7 @@ class TransferController {
 
       res.json(formatted);
     } catch (error) {
-      console.error('Get available skills failed:', error);
+      logger.error('Get available skills failed:', error);
       res.status(500).json({ error: 'Failed to get available skills' });
     }
   }

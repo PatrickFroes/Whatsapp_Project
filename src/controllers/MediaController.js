@@ -2,7 +2,8 @@
  * MediaController - Controla upload e envio de mídias
  */
 
-const MediaService = require('../services/MediaService');
+const MediaService = const logger = require('../utils/logger');
+const '../services/MediaService');
 const prisma = require('../services/database');
 const { getIO } = require('../services/socket');
 
@@ -130,7 +131,7 @@ class MediaController {
         waResponse
       });
     } catch (error) {
-      console.error('Media upload/send failed:', error);
+      logger.error('Media upload/send failed:', error);
       res.status(500).json({
         error: 'Failed to upload/send media',
         details: error.message
@@ -234,7 +235,7 @@ class MediaController {
 
       res.json({ success: true, message });
     } catch (error) {
-      console.error('Send media by URL failed:', error);
+      logger.error('Send media by URL failed:', error);
       res.status(500).json({
         error: 'Failed to send media',
         details: error.message
@@ -334,7 +335,7 @@ class MediaController {
 
       res.json({ success: true, message });
     } catch (error) {
-      console.error('Send location failed:', error);
+      logger.error('Send location failed:', error);
       res.status(500).json({
         error: 'Failed to send location',
         details: error.message
@@ -383,7 +384,7 @@ class MediaController {
         fileSize: mediaData.fileSize
       });
     } catch (error) {
-      console.error('Get media URL failed:', error);
+      logger.error('Get media URL failed:', error);
       res.status(500).json({
         error: 'Failed to get media URL',
         details: error.message

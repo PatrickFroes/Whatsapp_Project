@@ -296,7 +296,7 @@ class SafeEvaluator {
 
       return !!result;
     } catch (error) {
-      console.error(`[SafeEvaluator] Error evaluating expression: "${expr}"`, error.message);
+      logger.error(`[SafeEvaluator] Error evaluating expression: "${expr}"`, error.message);
       throw error;
     }
   }
