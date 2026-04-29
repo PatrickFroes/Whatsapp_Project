@@ -1,10 +1,11 @@
-const axios = const logger = require('../utils/logger');
-const 'axios');
+const logger = require('../utils/logger');
+const axios = require('axios');
 const prisma = require('./database');
 
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v18.0';
+const META_API_TIMEOUT_MS = parseInt(process.env.META_API_TIMEOUT_MS || '15000', 10);
 
-// Helper to get credentials from Configuration
+// Helper to get credentials from Configuration with tenant verification
 async function getCredentials(tenant) {
   if (!tenant || !tenant.id) {
     logger.error('[WhatsApp] No tenant provided');
@@ -13,7 +14,12 @@ async function getCredentials(tenant) {
 
   // Get Configuration for this tenant
   const config = await prisma.configuration.findUnique({
-    where: { tenantId: tenant.id }
+    where: { tenantId: tenant.id },
+    select: {
+      tenantId: true,
+      phoneNumberId: true,
+      whatsappToken: true
+    }
   });
 
   if (!config) {
@@ -21,8 +27,17 @@ async function getCredentials(tenant) {
     return null;
   }
 
+  // ✅ SECURITY: Verify tenant ownership
+  if (config.tenantId !== tenant.id) {
+    logger.error('[WhatsApp] SECURITY: Tenant ID mismatch - possible cross-tenant access attempt', {
+      configTenantId: config.tenantId,
+      requestedTenantId: tenant.id
+    });
+    return null;
+  }
+
   if (!config.phoneNumberId || !config.whatsappToken) {
-    logger.error(`[WhatsApp] Missing credentials for tenant: ${tenant.id}`, {
+    logger.warn(`[WhatsApp] Missing credentials for tenant: ${tenant.id}`, {
       phoneNumberId: config.phoneNumberId ? '✓' : '✗ MISSING',
       whatsappToken: config.whatsappToken ? '✓' : '✗ MISSING'
     });
@@ -67,28 +82,92 @@ async function sendMessage(to, content, tenant = null) {
   }
 
   try {
+    // ✅ Add timeout protection
     const response = await axios({
       method: 'POST',
       url: `${credentials.url}/messages`,
       data: dataPayload,
-      headers: { Authorization: `Bearer ${credentials.token}` }
+      headers: {
+        Authorization: `Bearer ${credentials.token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: META_API_TIMEOUT_MS
     });
-    logger.debug(`[WhatsApp] ✓ Mensagem enviada para ${to}`, {
-      tenant: tenant.name,
-      tenantId: tenant.id,
-      phoneNumberId: credentials.phoneNumberId
-    });
-    return response.data;
-  } catch (error) {
-    const errorData = error.response?.data || { message: error.message };
-    logger.error(`[WhatsApp] ✗ Falha ao enviar para ${to}`, {
+
+    logger.debug(`[WhatsApp] ✓ Message sent to ${to}`, {
       tenant: tenant.name,
       tenantId: tenant.id,
       phoneNumberId: credentials.phoneNumberId,
-      status: error.response?.status,
-      error: errorData
+      status: response.status
     });
-    // Don't throw to avoid crashing the FlowEngine loop, just log
+
+    return response.data;
+  } catch (error) {
+    // ✅ Categorize errors for better debugging and recovery
+    const status = error.response?.status;
+    const errorData = error.response?.data || { message: error.message };
+
+    // Timeout error
+    if (error.code === 'ECONNABORTED') {
+      logger.error(`[WhatsApp] ✗ Timeout sending to ${to} (${META_API_TIMEOUT_MS}ms exceeded)`, {
+        tenant: tenant.name,
+        tenantId: tenant.id,
+        phoneNumberId: credentials.phoneNumberId,
+        error: error.message
+      });
+      return null;
+    }
+
+    // Authentication error
+    if (status === 401) {
+      logger.error(`[WhatsApp] ✗ Authentication failed for ${to} (401)`, {
+        tenant: tenant.name,
+        tenantId: tenant.id,
+        error: 'Invalid or expired WhatsApp token',
+        details: errorData.error?.message
+      });
+      return null;
+    }
+
+    // Rate limiting
+    if (status === 429) {
+      logger.warn(`[WhatsApp] ✗ Rate limit exceeded for ${to}`, {
+        tenant: tenant.name,
+        tenantId: tenant.id,
+        retryAfter: error.response?.headers['retry-after']
+      });
+      return null;
+    }
+
+    // Server error
+    if (status >= 500) {
+      logger.error(`[WhatsApp] ✗ Server error (${status}) sending to ${to}`, {
+        tenant: tenant.name,
+        tenantId: tenant.id,
+        phoneNumberId: credentials.phoneNumberId,
+        error: errorData
+      });
+      return null;
+    }
+
+    // Other client errors
+    if (status && status >= 400) {
+      logger.error(`[WhatsApp] ✗ Client error (${status}) sending to ${to}`, {
+        tenant: tenant.name,
+        tenantId: tenant.id,
+        phoneNumberId: credentials.phoneNumberId,
+        error: errorData.error?.message || errorData.message
+      });
+      return null;
+    }
+
+    // Network error
+    logger.error(`[WhatsApp] ✗ Network error sending to ${to}`, {
+      tenant: tenant.name,
+      tenantId: tenant.id,
+      phoneNumberId: credentials.phoneNumberId,
+      error: error.message
+    });
     return null;
   }
 }

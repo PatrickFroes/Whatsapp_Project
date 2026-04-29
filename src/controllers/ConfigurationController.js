@@ -8,10 +8,10 @@
  */
 
 const logger = require('../utils/logger');
-const prisma =
-require('../services/database');
+const prisma = require('../services/database');
 const axios = require('axios');
 const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
+const { validateWebhookHmac } = require('../middleware/webhookHmac.middleware');
 
 class ConfigurationController {
   /**
