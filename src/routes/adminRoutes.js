@@ -4,7 +4,15 @@ const AdminController = require('../controllers/AdminController');
 const ConfigurationController = require('../controllers/ConfigurationController');
 const { authenticateToken, authorizeRole } = require('../middleware/authMiddleware');
 const { validateBody } = require('../middleware/validation.middleware');
-const { SaveConfigurationSchema } = require('../schemas/configuration.schemas');
+const {
+  SaveURAsSchema,
+  SavePausesSchema,
+  CreateAgentSchema,
+  UpdateAgentSchema,
+  CreateSkillSchema,
+  UpdateSettingsSchema,
+  SaveConfigurationSchema
+} = require('../schemas/admin.schemas');
 
 // All routes here require Authentication
 router.use(authenticateToken);
@@ -14,26 +22,56 @@ router.get('/config', AdminController.getConfig);
 
 // URAs (Flows) Management
 router.get('/uras', authorizeRole(['OWNER', 'ADMIN']), AdminController.getURAs);
-router.post('/uras', authorizeRole(['OWNER', 'ADMIN']), AdminController.saveURAs);
+router.post(
+  '/uras',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(SaveURAsSchema),
+  AdminController.saveURAs
+);
 
 // Pause Reasons
 router.get('/pauses', authorizeRole(['OWNER', 'ADMIN']), AdminController.getPauses);
-router.post('/pauses', authorizeRole(['OWNER', 'ADMIN']), AdminController.savePauses);
+router.post(
+  '/pauses',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(SavePausesSchema),
+  AdminController.savePauses
+);
 
 // Agents (Admins and Owners can manage agents)
 router.get('/agents', authorizeRole(['OWNER', 'ADMIN']), AdminController.listAgents);
-router.post('/agents', authorizeRole(['OWNER', 'ADMIN']), AdminController.createAgent);
+router.post(
+  '/agents',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(CreateAgentSchema),
+  AdminController.createAgent
+);
+router.put(
+  '/agents/:id',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(UpdateAgentSchema),
+  AdminController.updateAgent
+);
 router.delete('/agents/:id', authorizeRole(['OWNER', 'ADMIN']), AdminController.deleteAgent);
-router.put('/agents/:id', authorizeRole(['OWNER', 'ADMIN']), AdminController.updateAgent);
 
 // Skills
 router.get('/skills', authorizeRole(['OWNER', 'ADMIN']), AdminController.listSkills);
-router.post('/skills', authorizeRole(['OWNER', 'ADMIN']), AdminController.createSkill);
+router.post(
+  '/skills',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(CreateSkillSchema),
+  AdminController.createSkill
+);
 router.delete('/skills/:id', authorizeRole(['OWNER', 'ADMIN']), AdminController.deleteSkill);
 
 // Tenant Settings (Only Owner)
 router.get('/settings', authorizeRole(['OWNER']), AdminController.getSettings);
-router.put('/settings', authorizeRole(['OWNER']), AdminController.updateSettings);
+router.put(
+  '/settings',
+  authorizeRole(['OWNER']),
+  validateBody(UpdateSettingsSchema),
+  AdminController.updateSettings
+);
 
 // Configuration (WhatsApp API)
 router.get(

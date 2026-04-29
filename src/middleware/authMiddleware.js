@@ -1,5 +1,5 @@
-const jwt = const logger = require('../utils/logger');
-const 'jsonwebtoken');
+const logger = require('../utils/logger');
+const jwt = require('jsonwebtoken');
 
 if (!process.env.JWT_SECRET) {
   logger.error('FATAL: JWT_SECRET environment variable is required!');

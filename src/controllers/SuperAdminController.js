@@ -1,26 +1,64 @@
 const logger = require('../utils/logger');
 const prisma = require('../services/database');
 const bcrypt = require('bcryptjs');
-const { CreateTenantSchema } = require('../schemas/admin.schemas');
+const { CreateTenantSchema, UpdateTenantSchema, ToggleTenantStatusSchema } = require('../schemas/admin.schemas');
+const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
 
 class SuperAdminController {
+  // GET /api/super/tenants - List all tenants with pagination
   static async listTenants(req, res) {
     try {
-      const tenants = await prisma.tenant.findMany({
-        include: {
-          _count: {
-            select: { users: true, conversations: true }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
+      // Paginação com limites
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+      const skip = (page - 1) * limit;
+
+      logger.info('[SuperAdmin] Listing tenants', {
+        page,
+        limit,
+        userId: req.user.userId
       });
-      res.json(tenants);
+
+      const [tenants, totalCount] = await Promise.all([
+        prisma.tenant.findMany({
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            plan: true,
+            active: true,
+            createdAt: true,
+            updatedAt: true,
+            _count: {
+              select: { users: true, conversations: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.tenant.count()
+      ]);
+
+      res.json({
+        tenants,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          pages: Math.ceil(totalCount / limit)
+        }
+      });
     } catch (e) {
-      logger.error(e);
+      logger.error('[SuperAdmin] listTenants error:', {
+        error: e.message,
+        userId: req.user.userId
+      });
       res.status(500).json({ error: 'Failed to list tenants' });
     }
   }
 
+  // POST /api/super/tenants - Create new tenant
   static async createTenant(req, res) {
     try {
       // Validar com Zod schema
@@ -34,9 +72,24 @@ class SuperAdminController {
 
       const { name, slug, email, password, plan } = validation.data;
 
+      // Verificar slug duplicado
       const existingTenant = await prisma.tenant.findUnique({ where: { slug } });
       if (existingTenant) {
-        return res.status(400).json({ error: 'Slug already taken' });
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: { slug: ['Slug already taken'] }
+        });
+      }
+
+      // Verificar email único globalmente
+      const existingUser = await prisma.user.findFirst({
+        where: { email }
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: { email: ['Email already in use'] }
+        });
       }
 
       // Hash password OUTSIDE transaction (bcrypt is slow, could timeout tx)
@@ -48,9 +101,9 @@ class SuperAdminController {
           data: {
             name,
             slug,
-            plan: plan || 'free',
+            plan: plan || 'STARTER',
             active: true,
-            waPhoneId: null // Will be synchronized via Configuration.phoneNumberId later
+            waPhoneId: null
           }
         });
 
@@ -58,14 +111,14 @@ class SuperAdminController {
           data: {
             name: `${name} Admin`,
             email,
-            password: hashedPassword, // Use pre-hashed password
+            password: hashedPassword,
             role: 'OWNER',
-            tenantId: tenant.id
+            tenantId: tenant.id,
+            workStatus: 'AVAILABLE'
           }
         });
 
-        // Create empty Configuration record (admin will fill it via panel)
-        // This allows webhooks to find the tenant once Configuration is populated
+        // Create empty Configuration record
         const configuration = await tx.configuration.create({
           data: {
             tenantId: tenant.id,
@@ -80,58 +133,170 @@ class SuperAdminController {
         return { tenant, user, configuration };
       });
 
-      res.status(201).json(result);
+      // Auditoria
+      await logAuditEvent(AuditAction.TENANT_CREATED, {
+        tenantId: result.tenant.id,
+        tenantName: name,
+        createdBy: req.user.userId,
+        plan
+      });
+
+      logger.info('[SuperAdmin] Tenant created successfully', {
+        tenantId: result.tenant.id,
+        name,
+        createdBy: req.user.userId
+      });
+
+      res.status(201).json(result.tenant);
     } catch (e) {
-      logger.error(e);
+      logger.error('[SuperAdmin] createTenant error:', {
+        error: e.message,
+        userId: req.user.userId
+      });
       res.status(500).json({ error: 'Failed to create tenant' });
     }
   }
 
-  static async toggleTenantStatus(req, res) {
-    try {
-      const { id } = req.params;
-      const { active } = req.body; // boolean
-
-      const tenant = await prisma.tenant.update({
-        where: { id },
-        data: { active }
-      });
-      res.json(tenant);
-    } catch (e) {
-      res.status(500).json({ error: 'Failed to update Status' });
-    }
-  }
-
+  // PUT /api/super/tenants/:id - Update tenant
   static async updateTenant(req, res) {
     try {
       const { id } = req.params;
-      const { name, plan, waPhoneId, waBusinessId, waAccessToken, costPerMessage, costPerUser } =
-        req.body;
 
-      const tenant = await prisma.tenant.update({
+      // Validar que tenant existe
+      const tenant = await prisma.tenant.findUnique({
         where: { id },
-        data: {
-          name,
-          plan,
-          waPhoneId,
-          waBusinessId,
-          waAccessToken,
-          costPerMessage: parseFloat(costPerMessage || 0),
-          costPerUser: parseFloat(costPerUser || 0)
-        }
+        select: { id: true, name: true, plan: true }
       });
-      res.json(tenant);
+
+      if (!tenant) {
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      // Validar input com schema
+      const validation = UpdateTenantSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: validation.error.flatten().fieldErrors
+        });
+      }
+
+      const { name, plan, waPhoneId, waBusinessId, costPerMessage, costPerUser } = validation.data;
+
+      // Preparar dados para atualizar (apenas campos fornecidos)
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (plan !== undefined) updateData.plan = plan;
+      if (waPhoneId !== undefined) updateData.waPhoneId = waPhoneId;
+      if (waBusinessId !== undefined) updateData.waBusinessId = waBusinessId;
+      if (costPerMessage !== undefined) updateData.costPerMessage = costPerMessage;
+      if (costPerUser !== undefined) updateData.costPerUser = costPerUser;
+
+      const updatedTenant = await prisma.tenant.update({
+        where: { id },
+        data: updateData,
+        select: { id: true, name: true, plan: true, active: true, waPhoneId: true, updatedAt: true }
+      });
+
+      // Auditoria
+      await logAuditEvent(AuditAction.TENANT_UPDATED, {
+        tenantId: id,
+        changes: Object.keys(updateData),
+        updatedBy: req.user.userId
+      });
+
+      logger.info('[SuperAdmin] Tenant updated', {
+        tenantId: id,
+        changes: Object.keys(updateData),
+        updatedBy: req.user.userId
+      });
+
+      res.json(updatedTenant);
     } catch (e) {
-      logger.error(e);
-      res.status(500).json({ error: 'Failed to update Tenant' });
+      logger.error('[SuperAdmin] updateTenant error:', {
+        error: e.message,
+        tenantId: req.params.id,
+        userId: req.user.userId
+      });
+      res.status(500).json({ error: 'Failed to update tenant' });
     }
   }
 
-  static async getTenantAnalytics(req, res) {
-    // Metrics per Tenant
+  // PUT /api/super/tenants/:id/status - Toggle tenant active status
+  static async toggleTenantStatus(req, res) {
     try {
       const { id } = req.params;
-      const tenant = await prisma.tenant.findUnique({ where: { id } });
+
+      // Validar schema
+      const validation = ToggleTenantStatusSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: validation.error.flatten().fieldErrors
+        });
+      }
+
+      const { active } = validation.data;
+
+      // Verificar que tenant existe
+      const tenant = await prisma.tenant.findUnique({
+        where: { id },
+        select: { id: true, name: true, active: true }
+      });
+
+      if (!tenant) {
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      // Atualizar status
+      const updated = await prisma.tenant.update({
+        where: { id },
+        data: { active },
+        select: { id: true, name: true, active: true }
+      });
+
+      // Auditoria
+      const action = active ? AuditAction.TENANT_ACTIVATED : AuditAction.TENANT_DEACTIVATED;
+      await logAuditEvent(action, {
+        tenantId: id,
+        tenantName: tenant.name,
+        deactivatedBy: req.user.userId
+      });
+
+      logger.info('[SuperAdmin] Tenant status toggled', {
+        tenantId: id,
+        active,
+        changedBy: req.user.userId
+      });
+
+      res.json(updated);
+    } catch (e) {
+      logger.error('[SuperAdmin] toggleTenantStatus error:', {
+        error: e.message,
+        tenantId: req.params.id
+      });
+      res.status(500).json({ error: 'Failed to update tenant status' });
+    }
+  }
+
+  // GET /api/super/tenants/:id/analytics - Tenant analytics
+  static async getTenantAnalytics(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Validar que tenant existe
+      const tenant = await prisma.tenant.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          plan: true,
+          costPerMessage: true,
+          costPerUser: true,
+          currency: true
+        }
+      });
+
       if (!tenant) {
         return res.status(404).json({ error: 'Tenant not found' });
       }
@@ -141,9 +306,9 @@ class SuperAdminController {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // Parallel Queries
-      const [usersTotal, usersOnline, msgsSent, msgsRecv, campaigns] = await Promise.all([
-        prisma.user.count({ where: { tenantId: id } }),
-        prisma.user.count({ where: { tenantId: id, workStatus: 'ONLINE' } }),
+      const [usersTotal, usersOnline, msgsSent, msgsRecv, conversations] = await Promise.all([
+        prisma.user.count({ where: { tenantId: id, active: true } }),
+        prisma.user.count({ where: { tenantId: id, workStatus: 'AVAILABLE' } }),
         prisma.message.count({
           where: {
             conversation: { tenantId: id },
@@ -158,7 +323,7 @@ class SuperAdminController {
             createdAt: { gte: startOfMonth }
           }
         }),
-        prisma.campaign.count({ where: { tenantId: id } })
+        prisma.conversation.count({ where: { tenantId: id, status: { not: 'CLOSED' } } })
       ]);
 
       // Financial Calc
@@ -166,104 +331,132 @@ class SuperAdminController {
       const billUsers = usersTotal * (tenant.costPerUser || 0);
       const totalEstimated = billMessages + billUsers;
 
+      // Auditoria - apenas log de acesso
+      logger.info('[SuperAdmin] Analytics accessed', {
+        tenantId: id,
+        accessedBy: req.user.userId
+      });
+
       res.json({
-        tenant: { name: tenant.name, plan: tenant.plan, currency: tenant.currency },
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          plan: tenant.plan,
+          currency: tenant.currency || 'BRL'
+        },
         usage: {
           users: { total: usersTotal, online: usersOnline },
           messages: { sent: msgsSent, received: msgsRecv },
-          campaigns: campaigns
+          activeConversations: conversations
         },
         financial: {
-          costPerMessage: tenant.costPerMessage,
-          costPerUser: tenant.costPerUser,
-          billMessages,
-          billUsers,
-          totalEstimated
+          costPerMessage: tenant.costPerMessage || 0,
+          costPerUser: tenant.costPerUser || 0,
+          estimatedCostMessages: billMessages.toFixed(2),
+          estimatedCostUsers: billUsers.toFixed(2),
+          totalEstimatedMonth: totalEstimated.toFixed(2)
         }
       });
     } catch (e) {
-      logger.error(e);
-      res.status(500).json({ error: 'Analytics Error' });
+      logger.error('[SuperAdmin] getTenantAnalytics error:', {
+        error: e.message,
+        tenantId: req.params.id
+      });
+      res.status(500).json({ error: 'Failed to fetch analytics' });
     }
   }
 
+  // GET /api/super/metrics - Global system metrics
   static async getGlobalMetrics(req, res) {
     try {
-      const tenants = await prisma.tenant.findMany({
-        include: {
-          users: true,
+      // Usar aggregation em vez de loop (FIX N+1)
+      const tenantsWithMetrics = await prisma.tenant.findMany({
+        select: {
+          id: true,
+          name: true,
+          plan: true,
+          active: true,
+          costPerMessage: true,
+          costPerUser: true,
+          currency: true,
           _count: {
             select: {
-              conversations: true
+              users: true,
+              conversations: true,
+              messages: true
             }
           }
         }
       });
 
-      const stats = [];
-
-      for (const t of tenants) {
-        // Count OUTBOUND messages for billing (All time or current month? User asked for stats, let's do all time or generic)
-        // Let's do All Time for simplicity of "Server Stats", but usually billing is monthly.
-        // For this request, I will calculate Total All Time for cost estimation.
-
-        const messageCount = await prisma.message.count({
-          where: {
-            conversation: {
-              tenantId: t.id
-            },
-            direction: 'OUTBOUND'
-          }
-        });
-
-        const activeUsers = t.users.length;
+      // Calcular métricas sem N+1 queries
+      const stats = tenantsWithMetrics.map((t) => {
         const totalCost =
-          messageCount * (t.costPerMessage || 0) + activeUsers * (t.costPerUser || 0);
+          t._count.messages * (t.costPerMessage || 0) +
+          t._count.users * (t.costPerUser || 0);
 
-        stats.push({
+        return {
           tenantId: t.id,
           name: t.name,
           plan: t.plan,
           active: t.active,
-          users: activeUsers,
+          users: t._count.users,
           conversations: t._count.conversations,
-          messagesSent: messageCount,
-          unitCostMsg: t.costPerMessage || 0,
-          unitCostUser: t.costPerUser || 0,
-          estimatedCost: totalCost.toFixed(2),
+          messagesSent: t._count.messages,
+          costPerMessage: t.costPerMessage || 0,
+          costPerUser: t.costPerUser || 0,
+          estimatedCostTotal: totalCost.toFixed(2),
           currency: t.currency || 'BRL'
-        });
-      }
+        };
+      });
 
       // System Totals
-      const totalTenants = tenants.length;
+      const totalTenants = tenantsWithMetrics.length;
+      const activeTenants = tenantsWithMetrics.filter((t) => t.active).length;
       const totalRevenue = stats
-        .reduce((acc, curr) => acc + parseFloat(curr.estimatedCost), 0)
+        .reduce((acc, curr) => acc + parseFloat(curr.estimatedCostTotal), 0)
         .toFixed(2);
-      const totalMessagesOut = stats.reduce((acc, curr) => acc + curr.messagesSent, 0);
-      const totalUsers = stats.reduce((acc, curr) => acc + curr.users, 0);
+      const totalMessages = tenantsWithMetrics.reduce((acc, curr) => acc + curr._count.messages, 0);
+      const totalUsers = tenantsWithMetrics.reduce((acc, curr) => acc + curr._count.users, 0);
+      const totalConversations = tenantsWithMetrics.reduce(
+        (acc, curr) => acc + curr._count.conversations,
+        0
+      );
 
-      // Simple Server Resource Checks (Mocked/Simple Node Stats)
+      // Server Stats
+      const memUsage = process.memoryUsage();
       const serverStats = {
-        uptime: process.uptime(),
-        memoryUsage: process.memoryUsage(),
-        nodeVersion: process.version
+        uptime: Math.floor(process.uptime()),
+        memoryHeapUsedMB: Math.round(memUsage.heapUsed / 1024 / 1024),
+        memoryHeapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString()
       };
+
+      // Auditoria
+      logger.info('[SuperAdmin] Global metrics accessed', {
+        accessedBy: req.user.userId
+      });
 
       res.json({
         overview: {
           totalTenants,
+          activeTenants,
           totalRevenue,
-          totalMessagesOut,
+          totalMessages,
           totalUsers,
-          systemStatus: 'ONLINE',
-          server: serverStats
+          totalConversations,
+          systemStatus: 'ONLINE'
         },
-        details: stats
+        server: serverStats,
+        tenantMetrics: stats
       });
     } catch (e) {
-      logger.error(e);
-      res.status(500).json({ error: 'Error fetching metrics' });
+      logger.error('[SuperAdmin] getGlobalMetrics error:', {
+        error: e.message,
+        userId: req.user.userId
+      });
+      res.status(500).json({ error: 'Failed to fetch global metrics' });
     }
   }
 }
