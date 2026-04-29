@@ -4,13 +4,14 @@ const ChatController = require('../controllers/ChatController');
 const InternalNoteController = require('../controllers/InternalNoteController');
 const TransferController = require('../controllers/TransferController');
 const { authenticateToken } = require('../middleware/authMiddleware');
+const { validatePaginationLimits } = require('../middleware/queryLimits.middleware');
 
 router.use(authenticateToken);
 
 // Chats
-router.get('/chats', ChatController.listChats);
-router.get('/chats/:phone/messages', ChatController.getMessages);
-router.get('/history/:phone', ChatController.getMessages); // Alias for legacy/frontend support
+router.get('/chats', validatePaginationLimits, ChatController.listChats);
+router.get('/chats/:phone/messages', validatePaginationLimits, ChatController.getMessages);
+router.get('/history/:phone', validatePaginationLimits, ChatController.getMessages); // Alias for legacy/frontend support
 router.post('/chats/:phone/send', ChatController.sendMessage);
 router.post('/chats/:phone/resolve', ChatController.resolveChat);
 
