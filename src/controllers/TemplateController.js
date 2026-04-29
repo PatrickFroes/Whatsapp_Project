@@ -1,5 +1,6 @@
-const prisma = const logger = require('../utils/logger');
-const '../services/database');
+const logger = require('../utils/logger');
+const prisma =
+require('../services/database');
 const axios = require('axios');
 
 class TemplateController {

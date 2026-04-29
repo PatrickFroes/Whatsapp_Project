@@ -1,6 +1,7 @@
-const prisma = const logger = require('../utils/logger');
-const '../services/database');
+const logger = require('../utils/logger');
+const prisma = require('../services/database');
 const bcrypt = require('bcryptjs');
+const { CreateTenantSchema } = require('../schemas/admin.schemas');
 
 class SuperAdminController {
   static async listTenants(req, res) {
@@ -22,11 +23,16 @@ class SuperAdminController {
 
   static async createTenant(req, res) {
     try {
-      const { name, slug, email, password, plan } = req.body;
-
-      if (!name || !slug || !email || !password) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      // Validar com Zod schema
+      const validation = CreateTenantSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: validation.error.flatten().fieldErrors
+        });
       }
+
+      const { name, slug, email, password, plan } = validation.data;
 
       const existingTenant = await prisma.tenant.findUnique({ where: { slug } });
       if (existingTenant) {

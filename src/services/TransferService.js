@@ -2,7 +2,8 @@
  * TransferService - Transferência de conversas entre agentes
  */
 
-const prisma = const logger = require('../utils/logger');
+const logger = require('../utils/logger');
+const prisma =
 const './database');
 const { getIO } = require('./socket');
 

@@ -1,5 +1,6 @@
-const prisma = const logger = require('../utils/logger');
-const '../services/database');
+const logger = require('../utils/logger');
+const prisma =
+require('../services/database');
 
 /**
  * Controller para gerenciamento de histórico de conversas

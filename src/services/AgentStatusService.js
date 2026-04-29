@@ -9,7 +9,8 @@
  * - OFFLINE: Fora do sistema (não recebe nada, conversas transferidas automaticamente)
  */
 
-const prisma = const logger = require('../utils/logger');
+const logger = require('../utils/logger');
+const prisma =
 const './database');
 const TransferService = require('./TransferService');
 const QueueService = require('./QueueService');

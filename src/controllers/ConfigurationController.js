@@ -7,8 +7,9 @@
  * - Validar credenciais
  */
 
-const prisma = const logger = require('../utils/logger');
-const '../services/database');
+const logger = require('../utils/logger');
+const prisma =
+require('../services/database');
 const axios = require('axios');
 const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
 
