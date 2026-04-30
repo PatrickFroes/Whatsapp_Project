@@ -10,10 +10,9 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
-      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN}
-      META_APP_SECRET: ${META_APP_SECRET}
-      VERIFY_TOKEN: ${VERIFY_TOKEN}
-      PHONE_NUMBER_ID: ${PHONE_NUMBER_ID}
+      # ⚠️ IMPORTANT: WhatsApp credentials are NOT set here!
+      # Each tenant manages its own credentials via the Configuration table
+      # This ensures complete multi-tenant isolation and per-tenant credential security
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       LOGIN_RATE_LIMIT_WINDOW_MINUTES: 5
       LOGIN_RATE_LIMIT_MAX_ATTEMPTS: 5
