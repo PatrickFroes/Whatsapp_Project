@@ -6,13 +6,13 @@
 // Definir NODE_ENV como test
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_secret_key_do_not_use_in_production';
-process.env.WHATSAPP_TOKEN = 'test_token';
-process.env.PHONE_NUMBER_ID = 'test_phone_id';
+// NOTE: WHATSAPP_TOKEN, PHONE_NUMBER_ID, META_APP_SECRET are NOT set here
+// They are managed per-tenant in the Configuration table
+// Tests create Configuration records with mocked data for each tenant
 process.env.DATABASE_URL =
   process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/whatsapp_broker_test';
 process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-process.env.WEBHOOK_VERIFY_TOKEN = 'test_verify_token';
-process.env.META_APP_SECRET = 'test_app_secret';
+// NOTE: Webhook credentials are no longer in .env - test fixtures use database values
 
 // Timeout global para testes
 jest.setTimeout(10000);

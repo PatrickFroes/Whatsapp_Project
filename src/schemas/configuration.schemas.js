@@ -7,6 +7,7 @@ const z = require('zod');
 // Validação para salvar configuração
 // IMPORTANTE: Campos podem ser null/undefined (não está editando)
 // Mas se vêm preenchidos, devem ser válidos
+// Pelo menos UM campo de credencial deve ser fornecido
 const SaveConfigurationSchema = z.object({
   phoneNumberId: z
     .union([
@@ -42,6 +43,18 @@ const SaveConfigurationSchema = z.object({
       z.undefined()
     ])
     .optional()
+})
+.refine(
+  (data) => data.phoneNumberId || data.whatsappToken || data.metaAppSecret || data.verifyToken,
+  { message: 'Must provide at least one credential field' }
+);
+
+// Validação para credenciais completas (para uso em serviços)
+// Usado antes de chamar APIs Meta
+const ValidCredentialsSchema = z.object({
+  phoneNumberId: z.string().min(1, 'phoneNumberId is required'),
+  whatsappToken: z.string().min(20, 'whatsappToken is required'),
+  metaAppSecret: z.string().min(20, 'metaAppSecret is required')
 });
 
 // Schemas de resposta (leitura)
@@ -60,5 +73,6 @@ const ConfigurationResponseSchema = z.object({
 
 module.exports = {
   SaveConfigurationSchema,
-  ConfigurationResponseSchema
+  ConfigurationResponseSchema,
+  ValidCredentialsSchema
 };

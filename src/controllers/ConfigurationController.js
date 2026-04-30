@@ -79,6 +79,31 @@ class ConfigurationController {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
+      // Validar que pelo menos um campo de credencial está sendo fornecido
+      if (!phoneNumberId && !whatsappToken && !metaAppSecret && !verifyToken) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: 'Must provide at least one credential field (phoneNumberId, whatsappToken, metaAppSecret, or verifyToken)'
+        });
+      }
+
+      // Se phoneNumberId está sendo atualizado, verificar se já é usado por outro tenant
+      if (phoneNumberId) {
+        const existing = await prisma.configuration.findFirst({
+          where: {
+            phoneNumberId,
+            tenantId: { not: tenantId }  // Diferente tenant
+          }
+        });
+
+        if (existing) {
+          return res.status(409).json({
+            error: 'Validation failed',
+            details: 'phoneNumberId is already in use by another tenant'
+          });
+        }
+      }
+
       // Estrutura de atualização - NUNCA sobrescrever com undefined
       // Se campo vem vazio/null, mantém valor anterior
       const updateData = {
@@ -92,41 +117,19 @@ class ConfigurationController {
       if (whatsappToken) updateData.whatsappToken = whatsappToken;
       if (metaAppSecret) updateData.metaAppSecret = metaAppSecret;
 
-      // Atualizar tanto Configuration quanto Tenant em transação
-      const [config, updatedTenant] = await prisma.$transaction([
-        // Atualizar ou criar configuração
-        prisma.configuration.upsert({
-          where: { tenantId },
-          update: updateData,
-          create: {
-            tenantId,
-            phoneNumberId,
-            verifyToken,
-            whatsappToken,
-            metaAppSecret,
-            updatedBy: userId
-          }
-        }),
-        // Sincronizar Tenant.waPhoneId com Configuration.phoneNumberId
-        // Busca config atualizada e sincroniza
-        prisma.tenant.update({
-          where: { id: tenantId },
-          data: {
-            waPhoneId: phoneNumberId || null
-          }
-        })
-      ]);
-
-      // Verificar se sincronização funcionou
-      if (phoneNumberId && updatedTenant.waPhoneId !== phoneNumberId) {
-        logger.warn(
-          `[Configuration] Sync warning: waPhoneId (${updatedTenant.waPhoneId}) !== phoneNumberId (${phoneNumberId})`
-        );
-        return res.status(500).json({
-          error: 'Synchronization failed',
-          details: 'waPhoneId could not be synchronized'
-        });
-      }
+      // Atualizar Configuration (REMOVIDO: sincronização com Tenant)
+      const config = await prisma.configuration.upsert({
+        where: { tenantId },
+        update: updateData,
+        create: {
+          tenantId,
+          phoneNumberId: phoneNumberId || null,
+          verifyToken: verifyToken || null,
+          whatsappToken: whatsappToken || null,
+          metaAppSecret: metaAppSecret || null,
+          updatedBy: userId
+        }
+      });
 
       // Log audit
       await logAuditEvent(AuditAction.UPDATE_SETTINGS, {
@@ -147,7 +150,7 @@ class ConfigurationController {
 
       // Responder com status apenas
       res.json({
-        message: 'Configuration saved and synchronized successfully',
+        message: 'Configuration saved successfully',
         isConfigured: {
           phoneNumberId: !!config.phoneNumberId,
           verifyToken: !!config.verifyToken,
@@ -168,6 +171,14 @@ class ConfigurationController {
         return res.status(400).json({
           error: 'Validation failed',
           details: error.errors
+        });
+      }
+
+      // Unique constraint violation on phoneNumberId
+      if (error.code === 'P2002') {
+        return res.status(409).json({
+          error: 'Validation failed',
+          details: 'phoneNumberId already in use'
         });
       }
 

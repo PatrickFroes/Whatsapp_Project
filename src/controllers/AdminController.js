@@ -27,7 +27,7 @@ class AdminController {
         return res.status(404).json({ error: 'Tenant not found' });
       }
 
-      const [users, skills, tenantData] = await Promise.all([
+      const [users, skills, tenantData, configuration] = await Promise.all([
         prisma.user.findMany({
           where: { tenantId },
           select: {
@@ -45,10 +45,12 @@ class AdminController {
           where: { id: tenantId },
           select: {
             id: true,
-            name: true,
-            waPhoneId: true,
-            waBusinessId: true
+            name: true
           }
+        }),
+        prisma.configuration.findUnique({
+          where: { tenantId },
+          select: { phoneNumberId: true }
         })
       ]);
 
@@ -72,8 +74,7 @@ class AdminController {
         users: formattedUsers,
         skills,
         meta: {
-          phone_number_id: tenantData.waPhoneId,
-          business_id: tenantData.waBusinessId
+          phone_number_id: configuration?.phoneNumberId || null
         }
       });
     } catch (error) {
@@ -706,7 +707,7 @@ class AdminController {
   }
 
   // -------------------------------------------------------------------
-  // TENANT SETTINGS (WhatsApp Config)
+  // TENANT SETTINGS
   // -------------------------------------------------------------------
 
   static async getSettings(req, res) {
@@ -718,8 +719,6 @@ class AdminController {
         select: {
           id: true,
           name: true,
-          waPhoneId: true,
-          waBusinessId: true,
           maxConcurrentAgents: true,
           defaultAgentLanguage: true
         }
@@ -758,7 +757,7 @@ class AdminController {
         });
       }
 
-      const { waPhoneId, waBusinessId, maxConcurrentAgents, defaultAgentLanguage } = validation.data;
+      const { maxConcurrentAgents, defaultAgentLanguage } = validation.data;
 
       // Verify tenant exists
       const tenant = await prisma.tenant.findUnique({
@@ -772,10 +771,22 @@ class AdminController {
 
       // Prepare update data (only include provided fields)
       const updateData = {};
-      if (waPhoneId !== undefined) updateData.waPhoneId = waPhoneId;
-      if (waBusinessId !== undefined) updateData.waBusinessId = waBusinessId;
       if (maxConcurrentAgents !== undefined) updateData.maxConcurrentAgents = maxConcurrentAgents;
       if (defaultAgentLanguage !== undefined) updateData.defaultAgentLanguage = defaultAgentLanguage;
+
+      // If no fields to update, return current settings
+      if (Object.keys(updateData).length === 0) {
+        const currentSettings = await prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: {
+            id: true,
+            name: true,
+            maxConcurrentAgents: true,
+            defaultAgentLanguage: true
+          }
+        });
+        return res.json({ message: 'No changes to apply', settings: currentSettings });
+      }
 
       const updated = await prisma.tenant.update({
         where: { id: tenantId },
@@ -783,8 +794,6 @@ class AdminController {
         select: {
           id: true,
           name: true,
-          waPhoneId: true,
-          waBusinessId: true,
           maxConcurrentAgents: true,
           defaultAgentLanguage: true
         }

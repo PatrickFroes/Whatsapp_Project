@@ -36,16 +36,6 @@ const UpdateTenantSchema = z.object({
     .trim()
     .optional(),
   plan: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE']).optional(),
-  waPhoneId: z
-    .string()
-    .regex(/^\d+$/, 'Phone ID deve conter apenas dígitos')
-    .optional()
-    .or(z.null()),
-  waBusinessId: z
-    .string()
-    .regex(/^\d+$/, 'Business ID deve conter apenas dígitos')
-    .optional()
-    .or(z.null()),
   costPerMessage: z
     .number()
     .min(0, 'Custo não pode ser negativo')
@@ -175,17 +165,6 @@ const CreateSkillSchema = z.object({
 
 // NEW: Schema para atualizar settings/configurações (Admin - OWNER)
 const UpdateSettingsSchema = z.object({
-  waPhoneId: z
-    .string()
-    .regex(/^\d+$/, 'Phone ID deve conter apenas dígitos')
-    .optional()
-    .or(z.null()),
-  waBusinessId: z
-    .string()
-    .regex(/^\d+$/, 'Business ID deve conter apenas dígitos')
-    .optional()
-    .or(z.null()),
-  // waAccessToken não deve ser aceito via API! Usar endpoint seguro separado
   maxConcurrentAgents: z
     .number()
     .int()

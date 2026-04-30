@@ -78,12 +78,13 @@ const validateWebhookHmac = async (req, res, next) => {
       });
     }
 
-    // 4. Buscar tenant pelo waPhoneId
-    const tenant = await prisma.tenant.findFirst({
-      where: { waPhoneId: waPhoneId }
+    // 4. Buscar Configuration pelo phoneNumberId (identificador único do webhook)
+    const config = await prisma.configuration.findUnique({
+      where: { phoneNumberId: waPhoneId },
+      include: { tenant: true }
     });
 
-    if (!tenant) {
+    if (!config || !config.tenant) {
       logger.warn('[Webhook HMAC] Webhook from unknown phone_number_id - rejected');
       return res.status(403).json({
         error: 'Invalid tenant',
@@ -91,20 +92,9 @@ const validateWebhookHmac = async (req, res, next) => {
       });
     }
 
-    logger.debug('[Webhook HMAC] Tenant found, validating configuration');
+    const tenant = config.tenant;
 
-    // 5. Buscar Configuration do tenant (com metaAppSecret)
-    const config = await prisma.configuration.findUnique({
-      where: { tenantId: tenant.id }
-    });
-
-    if (!config) {
-      logger.error('[Webhook HMAC] Tenant configuration missing');
-      return res.status(500).json({
-        error: 'Configuration incomplete',
-        details: 'No configuration record exists for this tenant'
-      });
-    }
+    logger.debug('[Webhook HMAC] Configuration found for tenant, validating HMAC');
 
     if (!config.metaAppSecret) {
       logger.error('[Webhook HMAC] Tenant metaAppSecret not configured');
@@ -114,7 +104,7 @@ const validateWebhookHmac = async (req, res, next) => {
       });
     }
 
-    // 6. Calcular HMAC esperado
+    // 5. Calcular HMAC esperado
     logger.debug('[Webhook HMAC] Validating HMAC signature');
     const expectedHmac = crypto
       .createHmac('sha256', config.metaAppSecret)

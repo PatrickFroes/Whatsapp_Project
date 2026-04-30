@@ -13,23 +13,20 @@ model Tenant {
   slug          String         @unique
   plan          String         @default("free")
   active        Boolean        @default(true)
-  
+
   // Billing Config
   costPerMessage Float         @default(0.0) // Custo por mensagem enviada (OUT)
   costPerUser    Float         @default(0.0) // Custo por usuário cadastrado/mês
   currency       String        @default("BRL")
 
-  waPhoneId     String?
-  waBusinessId  String?
-  waAccessToken String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   flows         Json?
   pauseReasons  Json?
-  
+
   // Business Hours Config
   businessHours Json?          // { enabled, schedule: { monday: { start: "09:00", end: "18:00" } }, timezone: "America/Sao_Paulo", offlineMessage: "..." }
-  
+
   contacts      Contact[]
   conversations Conversation[]
   skills        Skill[]
@@ -314,18 +311,20 @@ model ConversationTransfer {
 
 // Configuration - API Credentials for WhatsApp Integration
 // Stores per-tenant WhatsApp API credentials securely
+// All credentials are REQUIRED and specific to each tenant (no shared/global credentials)
 model Configuration {
   id              String    @id @default(uuid())
   tenantId        String    @unique
-  phoneNumberId   String?   // WhatsApp Business Phone Number ID
-  verifyToken     String?   // Webhook verification token
-  whatsappToken   String?   // WhatsApp API access token (permanent)
-  metaAppSecret   String?   // Meta app secret for HMAC validation
+  phoneNumberId   String    @unique  // WhatsApp Business Phone Number ID - unique per tenant, identifies webhook source
+  verifyToken     String    // Webhook verification token (per-tenant)
+  whatsappToken   String    // WhatsApp API access token (permanent, per-tenant)
+  metaAppSecret   String    // Meta app secret for HMAC validation (per-tenant)
   updatedBy       String?   // User who made the last update
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+
   @@index([tenantId])
+  @@index([phoneNumberId])
 }

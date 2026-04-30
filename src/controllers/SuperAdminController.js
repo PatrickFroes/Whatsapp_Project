@@ -102,8 +102,7 @@ class SuperAdminController {
             name,
             slug,
             plan: plan || 'STARTER',
-            active: true,
-            waPhoneId: null
+            active: true
           }
         });
 
@@ -118,7 +117,7 @@ class SuperAdminController {
           }
         });
 
-        // Create empty Configuration record
+        // Create empty Configuration record - admin fills credentials later
         const configuration = await tx.configuration.create({
           data: {
             tenantId: tenant.id,
@@ -181,21 +180,19 @@ class SuperAdminController {
         });
       }
 
-      const { name, plan, waPhoneId, waBusinessId, costPerMessage, costPerUser } = validation.data;
+      const { name, plan, costPerMessage, costPerUser } = validation.data;
 
       // Preparar dados para atualizar (apenas campos fornecidos)
       const updateData = {};
       if (name !== undefined) updateData.name = name;
       if (plan !== undefined) updateData.plan = plan;
-      if (waPhoneId !== undefined) updateData.waPhoneId = waPhoneId;
-      if (waBusinessId !== undefined) updateData.waBusinessId = waBusinessId;
       if (costPerMessage !== undefined) updateData.costPerMessage = costPerMessage;
       if (costPerUser !== undefined) updateData.costPerUser = costPerUser;
 
       const updatedTenant = await prisma.tenant.update({
         where: { id },
         data: updateData,
-        select: { id: true, name: true, plan: true, active: true, waPhoneId: true, updatedAt: true }
+        select: { id: true, name: true, plan: true, active: true, updatedAt: true }
       });
 
       // Auditoria
