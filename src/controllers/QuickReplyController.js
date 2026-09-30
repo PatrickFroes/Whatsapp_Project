@@ -2,8 +2,8 @@
  * QuickReplyController - CRUD de respostas rápidas
  */
 
-const QuickReplyService = const logger = require('../utils/logger');
-const '../services/QuickReplyService');
+const logger = require('../utils/logger');
+const QuickReplyService = require('../services/QuickReplyService');
 
 class QuickReplyController {
   /**

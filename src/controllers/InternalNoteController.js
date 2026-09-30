@@ -2,8 +2,8 @@
  * InternalNoteController - Notas internas em conversas
  */
 
-const InternalNoteService = const logger = require('../utils/logger');
-const '../services/InternalNoteService');
+const logger = require('../utils/logger');
+const InternalNoteService = require('../services/InternalNoteService');
 
 class InternalNoteController {
   /**
@@ -12,9 +12,9 @@ class InternalNoteController {
   static async list(req, res) {
     try {
       const { conversationId } = req.params;
-      const { tenantId } = req.user;
+      const { tenantId, role, userId } = req.user;
 
-      const notes = await InternalNoteService.list(conversationId, tenantId);
+      const notes = await InternalNoteService.list(conversationId, tenantId, userId, role);
 
       res.json(notes);
     } catch (error) {
@@ -22,6 +22,10 @@ class InternalNoteController {
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        return res.status(403).json({ error: error.message });
       }
 
       res.status(500).json({ error: 'Failed to list notes' });
@@ -34,7 +38,7 @@ class InternalNoteController {
   static async create(req, res) {
     try {
       const { conversationId } = req.params;
-      const { userId, tenantId } = req.user;
+      const { userId, tenantId, role } = req.user;
       const { content } = req.body;
 
       if (!content || content.trim().length === 0) {
@@ -45,7 +49,8 @@ class InternalNoteController {
         conversationId,
         userId,
         tenantId,
-        content.trim()
+        content.trim(),
+        role
       );
 
       res.status(201).json(note);
@@ -54,6 +59,10 @@ class InternalNoteController {
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        return res.status(403).json({ error: error.message });
       }
 
       res.status(500).json({ error: 'Failed to create note' });
@@ -92,9 +101,9 @@ class InternalNoteController {
   static async count(req, res) {
     try {
       const { conversationId } = req.params;
-      const { tenantId } = req.user;
+      const { tenantId, role, userId } = req.user;
 
-      const count = await InternalNoteService.count(conversationId, tenantId);
+      const count = await InternalNoteService.count(conversationId, tenantId, userId, role);
 
       res.json({ count });
     } catch (error) {
@@ -102,6 +111,10 @@ class InternalNoteController {
 
       if (error.message === 'Conversation not found or access denied') {
         return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        return res.status(403).json({ error: error.message });
       }
 
       res.status(500).json({ error: 'Failed to count notes' });

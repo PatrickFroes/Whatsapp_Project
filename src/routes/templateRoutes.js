@@ -4,9 +4,11 @@ const TemplateController = require('../controllers/TemplateController');
 const { authenticateToken, authorizeRole } = require('../middleware/authMiddleware');
 
 router.use(authenticateToken);
-router.use(authorizeRole(['ADMIN', 'OWNER', 'SUPER_ADMIN']));
 
+// GET /api/templates - List templates (accessible by agents and admins to send templates)
 router.get('/', TemplateController.list);
-router.post('/sync', TemplateController.sync);
+
+// POST /api/templates/sync - Sincronizar templates (restricted to admins)
+router.post('/sync', authorizeRole(['ADMIN', 'OWNER', 'SUPER_ADMIN']), TemplateController.sync);
 
 module.exports = router;

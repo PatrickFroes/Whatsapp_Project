@@ -3,6 +3,8 @@ require('dotenv').config();
 const logger = require('./src/utils/logger');
 const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
 const { correlationIdMiddleware } = require('./src/middleware/correlationId.middleware');
+const ConversationTimeoutService = require('./src/services/ConversationTimeoutService');
+const { decrypt, hashString, isIpCompatible } = require('./src/utils/crypto');
 
 // ============================================================================
 // OTIMIZAÇÃO DE MEMÓRIA PARA SERVIDOR SMALL (2GB RAM, 2 CORES)
@@ -74,6 +76,7 @@ const businessHoursRoutes = require('./src/routes/businessHoursRoutes');
 
 const lgpdRoutes = require('./src/routes/lgpdRoutes');
 const historyRoutes = require('./src/routes/historyRoutes');
+const telegramRoutes = require('./src/routes/telegramRoutes');
 
 // Rate limiters from optimized middleware (with IPv6 support)
 const {
@@ -98,9 +101,16 @@ const SERVER_ID = Math.floor(Math.random() * 10000);
 console.log(`[Server] Starting Instance ID: ${SERVER_ID}`);
 
 async function startServer() {
+  const socketCorsOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:8080'
+  ];
+
   const io = await socketService.init(server, {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: socketCorsOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
   });
 
   // ============================================================================
@@ -186,7 +196,7 @@ async function startServer() {
           return callback(null, true);
         }
 
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
           logger.warn(`[CORS] Origem bloqueada: ${origin}`);
@@ -231,14 +241,33 @@ async function startServer() {
       return next();
     }
 
-    const token = req.cookies && req.cookies.auth_token;
+    let token = req.cookies && req.cookies.auth_token;
     if (!token) {
       return res.redirect('/login.html');
     }
 
+    const decrypted = decrypt(token);
+    token = decrypted || token;
+
     try {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // 🛡️ Validação de User-Agent e IP contra sequestro de sessão
+      const userAgent = req.headers['user-agent'] || '';
+      const currentUaHash = hashString(userAgent);
+      const currentIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+
+      if (decoded.uaHash && decoded.uaHash !== currentUaHash) {
+        res.clearCookie('auth_token', { path: '/' });
+        return res.redirect('/login.html');
+      }
+
+      if (decoded.ip && !isIpCompatible(decoded.ip, currentIp)) {
+        res.clearCookie('auth_token', { path: '/' });
+        return res.redirect('/login.html');
+      }
+
       const allowedRoles = protectedPages[pagePath];
 
       if (allowedRoles && !allowedRoles.includes(decoded.role)) {
@@ -256,11 +285,25 @@ async function startServer() {
   // PUBLIC PAGES & STATIC FILES
   // ============================================================================
   // Serve static files from frontend folder
-  app.use(express.static('frontend'));
+  app.use(
+    express.static('frontend', {
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    })
+  );
 
   // Serve policy pages (public routes)
   app.get('/privacy', (req, res) => {
     const privacyPath = require('path').join(__dirname, 'frontend', 'privacy.html');
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     
     res.sendFile(privacyPath, (err) => {
       if (err) {
@@ -307,6 +350,7 @@ async function startServer() {
 
   app.use('/api/lgpd', lgpdRoutes);
   app.use('/api/customer-history', historyRoutes);
+  app.use('/api', telegramRoutes);
 
   // Health Check
   app.get('/health', healthCheckLimiter, (req, res) => {
@@ -323,6 +367,20 @@ async function startServer() {
   server.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Inicia o monitor de expiração de conversas inativas
+    ConversationTimeoutService.init();
+
+    // Inicia o cron diário de limpeza de mensagens expiradas (SaaS)
+    const runCleanup = require('./scripts/cleanup-expired-data');
+    setTimeout(() => {
+      runCleanup().catch(err => logger.error('[Cleanup] Startup cleanup task error:', err.message));
+    }, 15000);
+
+    const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 horas
+    setInterval(() => {
+      runCleanup().catch(err => logger.error('[Cleanup] Periodic cleanup task error:', err.message));
+    }, CLEANUP_INTERVAL);
 
     // ========================================================================
     // MIDDLEWARE INTEGRATION REPORT
@@ -351,6 +409,7 @@ async function startServer() {
     logger.info('  - Performance metrics via morgan');
     logger.info('  - Audit logging service integration ready');
     logger.info('  - Cache service integration ready');
+    logger.info(`  - AI Integration: Provider=${process.env.AI_PROVIDER || 'ollama'} Model=${process.env.AI_MODEL || 'qwen2.5:3b'}`);
     logger.info('');
     logger.info('🔒 Security Status: HARDENED');
     logger.info('✨ Version: 2.0.0 - Production Ready');

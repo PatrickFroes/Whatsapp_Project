@@ -3,8 +3,8 @@
  * Suporta: imagens, vídeos, documentos, áudios
  */
 
-const axios = const logger = require('../utils/logger');
-const 'axios');
+const logger = require('../utils/logger');
+const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
@@ -61,9 +61,18 @@ async function getCredentials(tenant) {
   }
 
   try {
-    const config = await prisma.configuration.findUnique({
-      where: { tenantId: tenant.id }
-    });
+    let config;
+    if (tenant.whatsappPhoneId) {
+      config = await prisma.configuration.findFirst({
+        where: { tenantId: tenant.id, phoneNumberId: tenant.whatsappPhoneId }
+      });
+    }
+
+    if (!config) {
+      config = await prisma.configuration.findFirst({
+        where: { tenantId: tenant.id }
+      });
+    }
 
     if (!config || !config.whatsappToken || !config.phoneNumberId) {
       throw new Error(`Missing WhatsApp credentials for tenant: ${tenant.id}`);

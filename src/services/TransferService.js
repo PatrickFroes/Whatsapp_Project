@@ -3,9 +3,21 @@
  */
 
 const logger = require('../utils/logger');
-const prisma =
-const './database');
+const prisma = require('./database');
 const { getIO } = require('./socket');
+
+function getParsedFlowState(flowState) {
+  if (!flowState) return {};
+  if (typeof flowState === 'object') return flowState;
+  if (typeof flowState === 'string') {
+    try {
+      return JSON.parse(flowState);
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
 
 class TransferService {
   /**
@@ -46,16 +58,21 @@ class TransferService {
       throw new Error(`Target agent is ${toUser.workStatus} and cannot receive transfers`);
     }
 
-    // Verificar limite de conversas do agente
+    // Verificar limite de conversas do agente por tipo de iniciacao
+    const isOutbound = conversation.initiationType === 'OUTBOUND';
+    const limit = isOutbound ? (toUser.maxActiveChats ?? 5) : (toUser.maxReceivedChats ?? 5);
+    const limitLabel = isOutbound ? 'ativos' : 'recebidos';
+
     const assignedCount = await prisma.conversation.count({
       where: {
         assignedToId: toUserId,
-        status: { in: ['ASSIGNED'] }
+        status: { in: ['ASSIGNED', 'QUEUED'] },
+        initiationType: isOutbound ? 'OUTBOUND' : 'INBOUND'
       }
     });
 
-    if (assignedCount >= toUser.maxChats) {
-      throw new Error(`Target agent has reached maximum concurrent chats (${toUser.maxChats})`);
+    if (assignedCount >= limit) {
+      throw new Error(`Target agent has reached maximum concurrent ${limitLabel} chats (${limit})`);
     }
 
     // Registrar transferência
@@ -82,7 +99,11 @@ class TransferService {
       where: { id: conversationId },
       data: {
         assignedToId: toUserId,
-        status: 'ASSIGNED'
+        status: 'ASSIGNED',
+        flowState: conversation.flowState ? {
+          ...getParsedFlowState(conversation.flowState),
+          waitingForBusiness: false
+        } : null
       },
       include: {
         contact: true,
@@ -94,18 +115,32 @@ class TransferService {
 
     // Emitir via Socket.io - Usar tenant room para alcançar todos os agentes
     const io = getIO();
+    if (io) {
+      // Notificar todo o tenant sobre a transferência
+      io.to(`tenant:${conversation.tenantId}`).emit('conversation-transferred', {
+        conversationId,
+        conversation: updated,
+        from: transfer.fromUser,
+        to: transfer.toUser,
+        fromUserId,
+        toUserId,
+        reason,
+        notes
+      });
 
-    // Notificar todo o tenant sobre a transferência
-    io.to(`tenant:${conversation.tenantId}`).emit('conversation-transferred', {
-      conversationId,
-      conversation: updated,
-      from: transfer.fromUser,
-      to: transfer.toUser,
-      fromUserId,
-      toUserId,
-      reason,
-      notes
-    });
+      // Emitir evento de atribuição para atualizar a lista do agente de destino
+      io.to(`tenant:${conversation.tenantId}`).emit('chat_assigned', {
+        conversationId,
+        agentId: toUserId,
+        agentName: toUser.name
+      });
+
+      // Emitir chat_list_update para atualizar as listas dos demais agentes
+      io.to(`tenant:${conversation.tenantId}`).emit('chat_list_update', {
+        conversationId,
+        agentId: toUserId
+      });
+    }
 
     return {
       transfer,
@@ -209,20 +244,27 @@ class TransferService {
     const availableAgents = await AgentStatusService.getTransferableAgents(tenantId, null, userId);
 
     // Pegar o menos ocupado que ainda tem capacidade
-    const availableAgent = availableAgents.find((a) => a._count.assignedConversations < a.maxChats);
+    const availableAgent = availableAgents.find((a) => {
+      const activeCount = a.assignedConversations.filter(c => c.initiationType === 'OUTBOUND').length;
+      const receivedCount = a.assignedConversations.filter(c => c.initiationType === 'INBOUND').length;
+      return activeCount < (a.maxActiveChats ?? 5) || receivedCount < (a.maxReceivedChats ?? 5);
+    });
 
     if (!availableAgent) {
-      // Nenhum agente disponível, retornar para fila
-      await prisma.conversation.updateMany({
-        where: {
-          assignedToId: userId,
-          status: 'ASSIGNED'
-        },
-        data: {
-          assignedToId: null,
-          status: 'QUEUED'
-        }
-      });
+      // Nenhum agente disponível, retornar para fila de forma individual para limpar waitingForBusiness
+      for (const conv of conversations) {
+        await prisma.conversation.update({
+          where: { id: conv.id },
+          data: {
+            assignedToId: null,
+            status: 'QUEUED',
+            flowState: conv.flowState ? {
+              ...getParsedFlowState(conv.flowState),
+              waitingForBusiness: false
+            } : null
+          }
+        });
+      }
 
       return { transferred: 0, queued: conversations.length };
     }
@@ -277,8 +319,11 @@ class TransferService {
       data: {
         assignedToId: null,
         status: 'QUEUED',
+        dept: skill.name,
         flowState: {
-          requiredSkill: skillId
+          ...getParsedFlowState(conversation.flowState),
+          dept: skill.name,
+          waitingForBusiness: false
         }
       }
     });
@@ -296,9 +341,21 @@ class TransferService {
 
     // Notificar via Socket.io - Usar tenant room
     const io = getIO();
-    io.to(`tenant:${conversation.tenantId}`).emit('conversation-queued-skill', {
-      conversationId,
-      skill
+    if (io) {
+      io.to(`tenant:${conversation.tenantId}`).emit('conversation-queued-skill', {
+        conversationId,
+        skill
+      });
+      // Emitir chat_list_update para atualizar as listas
+      io.to(`tenant:${conversation.tenantId}`).emit('chat_list_update', {
+        conversationId
+      });
+    }
+
+    // Processar fila para tentar auto-atribuir imediatamente ao próximo agente disponível
+    const QueueService = require('./QueueService');
+    QueueService.processQueue(conversation.tenantId).catch((err) => {
+      logger.error(`[TransferService] Failed to process queue for tenant ${conversation.tenantId}:`, err);
     });
 
     return { success: true, skill };

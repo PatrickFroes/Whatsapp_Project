@@ -1,47 +1,158 @@
 const API_URL = '/api';
 let activeChatId = null;
 let activeConversationId = null;
+let activeChatOwnerId = null;
 let currentListMode = 'my';
 let allMessages = [];
 let pauseTimerInterval = null;
 let socket = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  const user = checkAuth();
-  if (!user) return;
+let inMemoryToken = null;
+function getAgentToken() {
+  const isIframe = window.self !== window.top;
+  if (!isIframe) return null; // Fora do iframe, usa apenas cookies nativos (sem cabeçalho de rede)
+  return inMemoryToken || null;
+}
 
-  initSocket(user);
+document.addEventListener('DOMContentLoaded', async () => {
+  document.body.style.display = 'none';
 
-  if (document.getElementById('agentNameDisplay')) {
-    document.getElementById('agentNameDisplay').innerText = user.username || 'Agente';
+  const isIframe = window.self !== window.top;
+  if (!isIframe) {
+    localStorage.removeItem('token'); // Limpa resquícios antigos do localStorage fora do iframe
+  }
+  const urlParams = new URLSearchParams(window.location.search);
+
+  async function startApp(user) {
+    window.currentUser = user;
+    initSocket(user);
+
+    if (document.getElementById('agentNameDisplay')) {
+      document.getElementById('agentNameDisplay').innerText = user.name || user.email || 'Agente';
+    }
+
+    if (urlParams.get('embed') === 'true' || isIframe) {
+      const nav = document.querySelector('nav');
+      if (nav) nav.style.display = 'none';
+
+      const container = document.querySelector('.container-fluid');
+      if (container) {
+        container.classList.add('p-0');
+      }
+
+      // Mover o status dropdown e o timer para a sidebar ao lado do avatar do agente
+      const statusDropdown = document.querySelector('nav .dropdown');
+      const timerBadge = document.getElementById('pauseTimerBadge');
+      const avatarEl = document.querySelector('#chatListSidebar .p-2 .bg-secondary');
+      const headerSidebar = document.querySelector('#chatListSidebar .p-2');
+
+      if (avatarEl && headerSidebar) {
+        // Encontra ou cria o container flex da esquerda
+        let leftContainer = document.getElementById('sidebarLeftControls');
+        if (!leftContainer) {
+          leftContainer = document.createElement('div');
+          leftContainer.id = 'sidebarLeftControls';
+          leftContainer.className = 'd-flex align-items-center gap-2';
+
+          // Coloca o leftContainer no início do headerSidebar
+          headerSidebar.insertBefore(leftContainer, headerSidebar.firstChild);
+
+          // Move o avatar para dentro dele
+          leftContainer.appendChild(avatarEl);
+
+          // Move o status dropdown para dentro dele
+          if (statusDropdown) {
+            leftContainer.appendChild(statusDropdown);
+            const btn = document.getElementById('agentStatusBtn');
+            if (btn) {
+              btn.classList.remove('btn-sm');
+              btn.style.fontSize = '0.75rem';
+              btn.style.padding = '0.15rem 0.35rem';
+            }
+          }
+
+          // Move o timer badge para dentro dele
+          if (timerBadge) {
+            leftContainer.appendChild(timerBadge);
+            timerBadge.style.fontSize = '0.7rem';
+            timerBadge.style.padding = '0.15rem 0.35rem';
+          }
+        }
+      }
+    }
+
+    if (user && user.role === 'AGENT') {
+      const btnTabQueue = document.getElementById('btnTabQueue');
+      if (btnTabQueue) {
+        const parent = btnTabQueue.parentNode;
+        const indicator = document.createElement('div');
+        indicator.className = 'btn btn-outline-secondary btn-sm flex-grow-1 position-relative disabled';
+        indicator.style.pointerEvents = 'none';
+        indicator.innerHTML = 'Fila <span class="badge bg-danger rounded-pill ms-1" id="queueCount">0</span>';
+        parent.replaceChild(indicator, btnTabQueue);
+      }
+      currentListMode = 'my';
+    }
+
+    fetchAgentStatus();
+    loadChats();
+
+    setInterval(() => loadChats(currentListMode), 5000);
+    setInterval(refreshActiveChat, 3000);
+
+    document.body.style.display = '';
   }
 
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('embed') === 'true') {
-    const nav = document.querySelector('nav');
-    if (nav) nav.style.display = 'none';
+  // Lógica de Autenticação Híbrida Segura em Iframe (window.name)
+  if (isIframe) {
+    const tokenFromWindowName = window.name;
+    if (tokenFromWindowName && tokenFromWindowName.startsWith('eyJ')) {
+      inMemoryToken = tokenFromWindowName;
 
-    const container = document.querySelector('.container-fluid');
-    if (container) {
-      container.classList.add('p-0');
+      try {
+        const resMe = await fetch('/api/auth/me', {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${inMemoryToken}`
+          }
+        });
+        if (!resMe.ok) {
+          window.name = '';
+          window.location.href = '/login.html';
+          return;
+        }
+        // Limpa o token do window.name imediatamente após validação bem-sucedida por segurança
+        window.name = '';
+        const user = await resMe.json();
+        await startApp(user);
+      } catch (err) {
+        console.error('[Broker] Iframe auth check failed:', err);
+        window.name = '';
+        window.location.href = '/login.html';
+      }
+    } else {
+      // Sem token em window.name (ex: F5) -> redireciona para login no iframe
+      window.location.href = '/login.html';
+    }
+  } else {
+    // Modo tradicional seguro via Cookies HttpOnly (Aba normal)
+    try {
+      const resMe = await fetch('/api/auth/me');
+      if (!resMe.ok) {
+        window.location.href = '/login.html';
+        return;
+      }
+      const user = await resMe.json();
+      await startApp(user);
+    } catch (err) {
+      console.error('Agent session validation failed:', err);
+      window.location.href = '/login.html';
     }
   }
-
-  fetchAgentStatus();
-  loadChats();
-
-  setInterval(() => loadChats(currentListMode), 5000);
-  setInterval(refreshActiveChat, 3000);
 });
 
 function checkAuth() {
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  if (!token || !userStr) {
-    window.location.href = '/login.html';
-    return null;
-  }
-  return JSON.parse(userStr);
+  return window.currentUser || null;
 }
 
 function handleIncomingMessage(data) {
@@ -59,15 +170,40 @@ function handleIncomingMessage(data) {
   loadChats();
 }
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  return {
+function getAuthHeaders(extraHeaders = {}) {
+  const headers = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`
+    ...extraHeaders
   };
+  const token = getAgentToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+function getRequestHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  const token = getAgentToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 window.logout = () => {
+  // Verificar se há chats ativos renderizados no painel do agente
+  const activeChatItems = document.querySelectorAll('#chatList .chat-item');
+  if (activeChatItems.length > 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Atendimentos em andamento',
+      text: 'Você possui conversas ativas. Solicite a saída na barra superior de status. O sistema o deslogará automaticamente assim que fechar todos os chats.',
+      confirmButtonText: 'Entendido'
+    });
+    return;
+  }
+
   if (activeConversationId && socket) {
     socket.emit('leave_conversation', activeConversationId);
   }
@@ -79,6 +215,10 @@ window.logout = () => {
 };
 
 window.loadChats = async (mode = currentListMode) => {
+  const user = checkAuth();
+  if (user && user.role === 'AGENT') {
+    mode = 'my';
+  }
   currentListMode = mode;
   try {
     const res = await fetch(`${API_URL}/chats?mode=${mode}`, { headers: getAuthHeaders() });
@@ -110,10 +250,14 @@ function renderChatList(chats) {
 
   chats.forEach((chat) => {
     const isActive = activeChatId === chat.phone;
+    if (isActive) {
+      chat.unread = 0;
+    }
     const item = document.createElement('div');
 
-    item.className = `p-3 border-bottom chat-item ${isActive ? 'bg-secondary bg-opacity-10 border-start border-success border-4' : ''}`;
+    item.className = `p-3 border-bottom chat-item ${isActive ? 'active' : ''}`;
     item.style.cursor = 'pointer';
+    item.dataset.phone = chat.phone;
     item.onclick = () => selectChat(chat.phone);
 
     let timeStr = '';
@@ -126,16 +270,28 @@ function renderChatList(chats) {
 
     const lastMsg = chat.lastMessage || 'Nova conversa';
 
+    let channelIcon = '<i class="bi bi-whatsapp text-success me-1"></i>';
+    if (chat.channel === 'TELEGRAM' || (chat.phone && chat.phone.startsWith('tg_'))) {
+      channelIcon = '<i class="bi bi-telegram text-info me-1" title="Telegram"></i>';
+    } else if (chat.channel === 'WEBCHAT' || (chat.phone && chat.phone.startsWith('vst_'))) {
+      channelIcon = '<i class="bi bi-laptop text-primary me-1" title="Webchat"></i>';
+    } else if (chat.channel === 'INSTAGRAM' || (chat.phone && chat.phone.startsWith('ig_'))) {
+      channelIcon = '<i class="bi bi-instagram text-danger me-1" title="Instagram"></i>';
+    }
+
     item.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="fw-bold text-truncate text-dark" style="max-width: 60%">${escapeHtml(chat.name || chat.phone)}</span>
+                <span class="fw-bold text-truncate text-dark d-flex align-items-center" style="max-width: 65%">
+                  ${channelIcon}
+                  <span class="text-truncate">${escapeHtml(chat.name || chat.phone)}</span>
+                </span>
                 <small class="text-muted" style="font-size: 0.75rem">${timeStr}</small>
             </div>
             <div class="d-flex justify-content-between align-items-center">
                 <small class="text-secondary text-truncate" style="max-width: 80%; font-size: 0.85rem">
                     ${escapeHtml(lastMsg)}
                 </small>
-                ${chat.unread > 0 ? `<span class="badge bg-success rounded-pill" style="font-size: 0.6rem">${chat.unread}</span>` : ''}
+                ${!isActive && chat.unread > 0 ? `<span class="badge bg-success rounded-pill" style="font-size: 0.6rem">${chat.unread}</span>` : ''}
             </div>
         `;
     list.appendChild(item);
@@ -152,7 +308,20 @@ window.selectChat = async (phone) => {
 
   activeChatId = phone;
   activeConversationId = null;
+  activeChatOwnerId = null;
   document.getElementById('currentPhone').value = phone;
+
+  // Zerar imediatamente badge visual de não lidas na lista
+  const chatItem = document.querySelector(`.chat-item[data-phone="${phone}"]`);
+  if (chatItem) {
+    const badge = chatItem.querySelector('.badge.bg-success');
+    if (badge) badge.remove();
+  }
+
+  const badgeEl = document.getElementById('currentChatConnectionBadge');
+  if (badgeEl) {
+    badgeEl.style.display = 'none';
+  }
 
   const titleEl = document.getElementById('currentChatTitle');
   if (titleEl) titleEl.innerText = `+${phone}`;
@@ -173,11 +342,11 @@ window.selectChat = async (phone) => {
 
   document.body.classList.add('chat-active');
 
-  loadChats();
-
+  // Primeiro faz o refresh do chat que zera o unreadCount no banco
   await refreshActiveChat();
-
   await loadConversationId(phone);
+  // Depois recarrega a lista de chats com os contadores já zerados no banco
+  loadChats();
 
   document.getElementById('currentChatSubtitle').innerText = 'Atendimento em andamento';
   document.getElementById('chatInput').focus();
@@ -193,6 +362,22 @@ async function loadConversationId(phone) {
     if (chat && chat.conversationId) {
       currentConversationId = chat.conversationId;
       activeConversationId = chat.conversationId;
+      activeChatOwnerId = chat.assignedToId || null;
+
+      const badgeEl = document.getElementById('currentChatConnectionBadge');
+      if (badgeEl) {
+        if (chat.channel === 'TELEGRAM' || phone.startsWith('tg_')) {
+          badgeEl.innerHTML = '<i class="bi bi-telegram me-1"></i> Telegram';
+          badgeEl.className = 'badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1';
+        } else if (chat.channel === 'WEBCHAT' || phone.startsWith('vst_')) {
+          badgeEl.innerHTML = '<i class="bi bi-laptop me-1"></i> Webchat';
+          badgeEl.className = 'badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1';
+        } else {
+          badgeEl.innerHTML = `<i class="bi bi-whatsapp me-1"></i> ${escapeHtml(chat.channelName || 'WhatsApp')}`;
+          badgeEl.className = 'badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1';
+        }
+        badgeEl.style.display = 'inline-block';
+      }
 
       if (socket) {
         socket.emit('join_conversation', activeConversationId);
@@ -200,6 +385,7 @@ async function loadConversationId(phone) {
       }
 
       loadInternalNotes();
+      refreshActiveChat(); // Forçar refresh para aplicar o bloqueio/desbloqueio do input area
     }
   } catch (e) {
     console.error('Erro ao buscar conversation ID:', e);
@@ -211,13 +397,28 @@ window.refreshActiveChat = async () => {
 
   try {
     const res = await fetch(`${API_URL}/history/${activeChatId}`, { headers: getAuthHeaders() });
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.status === 403) {
+        // Chat was transferred or unassigned! Block interaction immediately.
+        activeChatOwnerId = null;
+        check24HourWindow(allMessages);
+      }
+      return;
+    }
+
+    // Read owner header
+    const ownerId = res.headers.get('X-Conversation-Owner-Id');
+    if (ownerId !== null) {
+      activeChatOwnerId = ownerId || null;
+    }
 
     const messages = await res.json();
 
     if (JSON.stringify(messages) !== JSON.stringify(allMessages)) {
       allMessages = messages;
       renderMessages(messages);
+    } else {
+      check24HourWindow(messages);
     }
   } catch (e) {
     console.error('Sync Error', e);
@@ -227,6 +428,9 @@ window.refreshActiveChat = async () => {
 function renderMessages(messages) {
   const area = document.getElementById('messagesArea');
   if (!area) return;
+
+  // Verificar a janela de 24h para envio de mensagens livres
+  check24HourWindow(messages);
 
   area.innerHTML = '';
 
@@ -242,6 +446,37 @@ function renderMessages(messages) {
   const fragment = document.createDocumentFragment();
 
   messages.forEach((msg) => {
+    // 🛡️ Renderização de Modo Sussurro (Nota Interna Privada)
+    if (msg.contentType === 'whisper' || msg.isPrivate) {
+      const divWhisper = document.createElement('div');
+      divWhisper.className = 'w-100 my-2 px-2 d-flex justify-content-center';
+      const time = new Date(msg.createdAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const senderName = msg.senderName || msg.user?.name || 'Supervisor / Agente';
+      const senderRole = msg.senderRole || msg.user?.role || 'SUPERVISOR';
+      const roleBadge = senderRole === 'SUPERVISOR' ? 'bg-warning text-dark' : 'bg-secondary text-white';
+
+      divWhisper.innerHTML = `
+        <div class="card border-warning shadow-sm" style="background-color: #fff9e6; max-width: 90%; width: 100%; border-left: 4px solid #f59e0b !important; border-radius: 8px;">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-bold text-dark d-flex align-items-center gap-1">
+                <i class="bi bi-lock-fill text-warning"></i>
+                <span>${escapeHtml(senderName)}</span>
+                <span class="badge ${roleBadge} px-1 py-0 ms-1" style="font-size: 0.65rem;">${escapeHtml(senderRole)}</span>
+              </span>
+              <span class="text-muted" style="font-size: 0.7rem;">${time} • <strong class="text-warning-emphasis">Sussurro Interno</strong></span>
+            </div>
+            <div class="text-dark small mb-0" style="white-space: pre-wrap; font-size: 0.88rem;">${escapeHtml(msg.content)}</div>
+          </div>
+        </div>
+      `;
+      fragment.appendChild(divWhisper);
+      return;
+    }
+
     const isMe = msg.direction === 'OUTBOUND';
     const isSystem = msg.type === 'system' || msg.senderId === 'system';
 
@@ -350,7 +585,30 @@ function renderMessages(messages) {
                     </div>
                 `;
       } else {
-        contentHtml = `<div class="mb-2">${escapeHtml(msg.content)}</div>`;
+        let displayedContent = msg.content;
+        let interactiveButtons = [];
+        if (msg.content && msg.content.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(msg.content);
+            if (parsed.type === 'interactive' || parsed.interactive) {
+              const interactiveObj = parsed.interactive || parsed;
+              displayedContent = interactiveObj.body?.text || 'Opções interativas:';
+              const btns = interactiveObj.action?.buttons || [];
+              interactiveButtons = btns.map(b => b.reply?.title).filter(Boolean);
+            }
+          } catch (e) {
+            // Mantém string crua se falhar
+          }
+        }
+
+        let buttonsHtml = '';
+        if (interactiveButtons.length > 0) {
+          buttonsHtml = `<div class="d-flex flex-column gap-1 mt-2">` +
+            interactiveButtons.map(title => `<span class="badge bg-light text-secondary border align-self-start small" style="font-size:0.75rem;">${escapeHtml(title)}</span>`).join('') +
+            `</div>`;
+        }
+
+        contentHtml = `<div class="mb-2">${escapeHtml(displayedContent)}${buttonsHtml}</div>`;
       }
 
       div.innerHTML = `
@@ -370,6 +628,46 @@ function renderMessages(messages) {
   area.scrollTop = area.scrollHeight;
 }
 
+window.appendWhisperToMessagesArea = function(msg) {
+  const area = document.getElementById('messagesArea');
+  if (!area) return;
+
+  // 🛡️ Proteção contra sussurros duplicados
+  if (msg.id) {
+    const existingMsg = document.getElementById(`whisper_msg_${msg.id}`);
+    if (existingMsg) return;
+  }
+
+  const divWhisper = document.createElement('div');
+  if (msg.id) divWhisper.id = `whisper_msg_${msg.id}`;
+  divWhisper.className = 'w-100 my-2 px-2 d-flex justify-content-center';
+  const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const senderName = msg.senderName || 'Supervisor';
+  const senderRole = msg.senderRole || 'SUPERVISOR';
+  const roleBadge = senderRole === 'SUPERVISOR' ? 'bg-warning text-dark' : 'bg-secondary text-white';
+
+  divWhisper.innerHTML = `
+    <div class="card border-warning shadow-sm animate__animated animate__fadeIn" style="background-color: #fff9e6; max-width: 90%; width: 100%; border-left: 4px solid #f59e0b !important; border-radius: 8px;">
+      <div class="card-body py-2 px-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small fw-bold text-dark d-flex align-items-center gap-1">
+            <i class="bi bi-lock-fill text-warning"></i>
+            <span>${escapeHtml(senderName)}</span>
+            <span class="badge ${roleBadge} px-1 py-0 ms-1" style="font-size: 0.65rem;">${escapeHtml(senderRole)}</span>
+          </span>
+          <span class="text-muted" style="font-size: 0.7rem;">${time} • <strong class="text-warning-emphasis">Sussurro do Supervisor</strong></span>
+        </div>
+        <div class="text-dark small mb-0" style="white-space: pre-wrap; font-size: 0.88rem;">${escapeHtml(msg.content)}</div>
+      </div>
+    </div>
+  `;
+  area.appendChild(divWhisper);
+  area.scrollTop = area.scrollHeight;
+};
+
 window.handleSendMessage = async (e) => {
   e.preventDefault();
   const input = document.getElementById('chatInput');
@@ -377,14 +675,18 @@ window.handleSendMessage = async (e) => {
   if (!content || !activeChatId) return;
 
   input.value = '';
-
   input.focus();
 
   try {
+    const payload = { content, type: 'text' };
+    if (activeConversationId) {
+      payload.conversationId = activeConversationId;
+    }
+
     const res = await fetch(`${API_URL}/chats/${activeChatId}/send`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ content, type: 'text' })
+      body: JSON.stringify(payload)
     });
 
     if (res.ok) {
@@ -398,8 +700,41 @@ window.handleSendMessage = async (e) => {
   }
 };
 
-window.closeChat = () => {
+window.closeChat = async () => {
   if (!activeChatId) return;
+
+  const select = document.getElementById('closeDisposition');
+  if (select) {
+    try {
+      const res = await fetch(`${API_URL}/dispositions`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const dispositions = data.dispositions || [];
+        
+        // Preserve current selection if still valid
+        const currentValue = select.value;
+        
+        // Clear and rebuild options
+        select.innerHTML = '<option value="" disabled>Selecione...</option>';
+        dispositions.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.label;
+          opt.textContent = d.label;
+          select.appendChild(opt);
+        });
+        
+        // Re-select previous value if still exists
+        if (currentValue && dispositions.some(d => d.label === currentValue)) {
+          select.value = currentValue;
+        } else {
+          select.value = "";
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar motivos de encerramento:', err);
+    }
+  }
+
   const modal = new bootstrap.Modal(document.getElementById('closeChatModal'));
   modal.show();
 };
@@ -604,7 +939,7 @@ function updateStatusUI(status, reason) {
 
   if (status === 'online') {
     btn.innerHTML = '🟢 Online';
-    btn.classList.remove('btn-warning', 'btn-danger', 'btn-secondary');
+    btn.classList.remove('btn-warning', 'btn-danger', 'btn-secondary', 'text-white');
     btn.classList.add('btn-light');
   } else if (status === 'offline') {
     btn.innerHTML = '🔴 Offline';
@@ -612,7 +947,7 @@ function updateStatusUI(status, reason) {
     btn.classList.add('btn-danger', 'text-white');
   } else if (status === 'paused') {
     btn.innerHTML = `⏸️ ${reason || 'Pausa'}`;
-    btn.classList.remove('btn-light', 'btn-danger', 'btn-secondary');
+    btn.classList.remove('btn-light', 'btn-danger', 'btn-secondary', 'text-white');
     btn.classList.add('btn-warning');
 
     if (badge) {
@@ -1166,6 +1501,9 @@ async function handleMediaUpload(event) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('phone', phone);
+    if (activeConversationId) {
+      formData.append('conversationId', activeConversationId);
+    }
 
     const caption = await Swal.fire({
       title: 'Adicionar legenda?',
@@ -1190,9 +1528,7 @@ async function handleMediaUpload(event) {
 
     const res = await fetch(`${API_URL}/media/upload`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      },
+      headers: getRequestHeaders(),
       body: formData
     });
 
@@ -1222,9 +1558,11 @@ async function handleMediaUpload(event) {
 function initSocket(user) {
   if (socket) return;
 
-  socket = io('/', {
-    auth: { token: localStorage.getItem('token') }
-  });
+  const socketOptions = {};
+  if (inMemoryToken) {
+    socketOptions.auth = { token: inMemoryToken };
+  }
+  socket = io('/', socketOptions);
 
   socket.on('connect', () => {
     console.log('🔌 Socket.io conectado:', socket.id);
@@ -1261,6 +1599,10 @@ function initSocket(user) {
       loadChats();
       showNotification('Nova conversa atribuída a você!', 'info');
     }
+    if (activeConversationId === data.conversationId) {
+      activeChatOwnerId = data.agentId;
+      refreshActiveChat();
+    }
   });
 
   socket.on('agent_status_changed', (data) => {
@@ -1269,17 +1611,23 @@ function initSocket(user) {
 
   socket.on('status_updated', (data) => {
     console.log('📊 Meu status atualizado:', data);
-    if (data.userId === user.id) {
-      updateStatusUI(data.status.toLowerCase(), data.reason);
+    updateStatusUI(data.status.toLowerCase(), data.reason);
+    
+    // Se o status virou OFFLINE (logout pendente concluído)
+    if (data.status === 'OFFLINE') {
+      console.log('🚪 Logout pendente concluído. Deslogando...');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
     }
   });
 
   socket.on('auto_transfer_notification', (data) => {
     console.log('🔄 Auto transfer:', data);
-    const count = data.conversationIds?.length || 0;
+    const count = (data.transferred || 0) + (data.queued || 0);
     if (count > 0) {
       showNotification(
-        `${count} conversa${count > 1 ? 's foram transferidas' : ' foi transferida'} devido à mudança de status`,
+        data.message || `${count} conversa${count > 1 ? 's foram transferidas' : ' foi transferida'} devido à mudança de status`,
         'info'
       );
       loadChats();
@@ -1292,19 +1640,45 @@ function initSocket(user) {
 
   socket.on('conversation_resolved', (data) => {
     console.log('✅ Conversa resolvida:', data);
+    // Se a conversa encerrada for a que está aberta, limpar a tela
+    if (data.conversationId && data.conversationId === activeConversationId) {
+      activeChatId = null;
+      activeConversationId = null;
+      activeChatOwnerId = null;
+      document.body.classList.remove('chat-active');
+      document.getElementById('messagesArea').innerHTML = `
+        <div class="w-100 h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+          <i class="bi bi-check-circle display-4 text-success mb-3"></i>
+          <p class="mb-0 fw-semibold">Atendimento encerrado</p>
+          <small class="mt-1">${data.disposition === 'Enviado para Pesquisa'
+            ? 'Pesquisa de satisfação enviada ao cliente.'
+            : 'Conversa encerrada com sucesso.'}</small>
+        </div>`;
+      document.getElementById('inputArea').classList.add('d-none');
+      document.getElementById('inputArea').classList.remove('d-flex');
+      document.getElementById('currentChatTitle').innerText = '...';
+      document.getElementById('currentChatSubtitle').innerText = 'Selecione uma conversa';
+    }
     loadChats(currentListMode);
+  });
+
+  socket.on('whisper_message', (data) => {
+    console.log('🔒 Sussurro em tempo real recebido:', data);
+    if (activeConversationId === data.conversationId || activeChatId === data.phone) {
+      window.appendWhisperToMessagesArea(data);
+    }
   });
 
   socket.on('internal-note', (data) => {
     console.log('📝 Nova nota interna:', data);
-    if (currentConversationId === data.conversationId) {
+    if (activeConversationId === data.conversationId || currentConversationId === data.conversationId) {
       loadInternalNotes();
     }
   });
 
   socket.on('internal-note-deleted', (data) => {
     console.log('🗑️ Nota interna removida:', data);
-    if (currentConversationId === data.conversationId) {
+    if (activeConversationId === data.conversationId || currentConversationId === data.conversationId) {
       loadInternalNotes();
     }
   });
@@ -1337,15 +1711,13 @@ async function openHistoryPanel() {
 }
 
 async function loadContactHistory(phone) {
-  const token = localStorage.getItem('token');
-
   try {
     const [summaryRes, sessionsRes] = await Promise.all([
       fetch(`${API_URL}/customer-history/contact/${phone}/summary`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getRequestHeaders()
       }),
       fetch(`${API_URL}/customer-history/contact/${phone}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getRequestHeaders()
       })
     ]);
 
@@ -1465,11 +1837,10 @@ async function loadSessionMessages(sessionId, isCurrent) {
     '<div class="text-center p-4"><div class="spinner-border"></div><p class="mt-2">Carregando mensagens...</p></div>';
 
   try {
-    const token = localStorage.getItem('token');
     console.log('[History] Buscando:', `${API_URL}/customer-history/session/${sessionId}`);
 
     const response = await fetch(`${API_URL}/customer-history/session/${sessionId}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: getRequestHeaders()
     });
 
     console.log('[History] Response status:', response.status);
@@ -1485,7 +1856,7 @@ async function loadSessionMessages(sessionId, isCurrent) {
     renderSessionMessages(data);
   } catch (error) {
     console.error('[History] Erro ao carregar mensagens:', error);
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar mensagens: ${error.message}</div>`;
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar mensagens: ${escapeHtml(error.message || 'Erro desconhecido')}</div>`;
   }
 }
 
@@ -1542,15 +1913,13 @@ function renderSessionMessages(data) {
 
       const isInbound = item.direction === 'INBOUND';
       const alignment = isInbound ? 'start' : 'end';
-      const bgColor = isInbound ? 'bg-light' : 'bg-primary text-white';
+      const bubbleClass = isInbound ? 'message-in' : 'message-out';
 
       return `
-            <div class="d-flex justify-content-${alignment} mb-2">
-                <div class="card ${bgColor}" style="max-width: 70%;">
-                    <div class="card-body p-2">
-                        <div class="small">${item.content || '(Mensagem sem conteúdo)'}</div>
-                        <div class="text-muted" style="font-size: 0.7rem;">${time}</div>
-                    </div>
+            <div class="d-flex justify-content-${alignment} mb-2 w-100">
+                <div class="message-bubble ${bubbleClass} text-dark position-relative" style="min-width: 120px; max-width: 70%;">
+                    <div class="small">${item.content || '(Mensagem sem conteúdo)'}</div>
+                    <div class="text-muted mt-1" style="font-size: 0.7rem; text-align: right;">${time}</div>
                 </div>
             </div>
         `;
@@ -1581,11 +1950,9 @@ function renderSessionMessages(data) {
 }
 
 async function loadMoreSessionMessages(sessionId, page) {
-  const token = localStorage.getItem('token');
-
   try {
     const response = await fetch(`${API_URL}/customer-history/session/${sessionId}?page=${page}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: getRequestHeaders()
     });
 
     if (!response.ok) throw new Error('Erro ao carregar mais mensagens');
@@ -1598,3 +1965,511 @@ async function loadMoreSessionMessages(sessionId, page) {
     Swal.fire('Erro', 'Erro ao carregar mais mensagens', 'error');
   }
 }
+
+// ============================================================
+// TEMPLATE MESSAGES (HSM) IMPLEMENTATION
+// ============================================================
+let STATE_TEMPLATES = [];
+let SELECTED_TEMPLATE = null;
+
+window.openTemplatesModal = async () => {
+  const selectEl = document.getElementById('templateSelect');
+  if (!selectEl) return;
+  
+  selectEl.innerHTML = '<option value="">Carregando modelos...</option>';
+  
+  // Hide preview and variables containers initially
+  document.getElementById('templatePreviewContainer').classList.add('d-none');
+  document.getElementById('templateParamsContainer').classList.add('d-none');
+  
+  try {
+    const res = await fetch(`${API_URL}/templates`, {
+      headers: getRequestHeaders()
+    });
+    
+    if (!res.ok) throw new Error('Falha ao carregar modelos');
+    
+    STATE_TEMPLATES = await res.json();
+    
+    selectEl.innerHTML = '<option value="">Selecione um modelo...</option>';
+    
+    const modal = new bootstrap.Modal(document.getElementById('templatesModal'));
+    modal.show();
+
+    if (STATE_TEMPLATES.length === 0) {
+      selectEl.innerHTML = '<option value="">Nenhum modelo sincronizado no banco</option>';
+      return;
+    }
+    
+    STATE_TEMPLATES.forEach(t => {
+      const option = document.createElement('option');
+      option.value = t.name;
+      option.textContent = `${t.name} (${t.language})`;
+      selectEl.appendChild(option);
+    });
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro', 'Erro ao carregar os modelos de mensagens.', 'error');
+  }
+};
+
+window.handleTemplateSelectChange = () => {
+  const selectVal = document.getElementById('templateSelect').value;
+  const previewContainer = document.getElementById('templatePreviewContainer');
+  const paramsContainer = document.getElementById('templateParamsContainer');
+  const previewEl = document.getElementById('templatePreview');
+  const paramsList = document.getElementById('templateParamsList');
+  
+  if (!selectVal) {
+    previewContainer.classList.add('d-none');
+    paramsContainer.classList.add('d-none');
+    return;
+  }
+  
+  const template = STATE_TEMPLATES.find(t => t.name === selectVal);
+  if (!template) return;
+  
+  SELECTED_TEMPLATE = template;
+  
+  // Find BODY component to show preview and find variables
+  let components = template.components || [];
+  if (typeof components === 'string') {
+    try {
+      components = JSON.parse(components);
+    } catch (e) {
+      components = [];
+    }
+  }
+  if (components && !Array.isArray(components) && Array.isArray(components.components)) {
+    components = components.components;
+  }
+  if (!Array.isArray(components)) {
+    components = [];
+  }
+  const bodyComp = components.find(c => c.type === 'BODY');
+  const bodyText = bodyComp ? bodyComp.text : '';
+  
+  previewEl.textContent = bodyText;
+  previewContainer.classList.remove('d-none');
+  
+  // Find all placeholders like {{nome}}, {{1}}, etc.
+  const regex = /\{\{([^}]+)\}\}/g;
+  let match;
+  const variables = new Set();
+  while ((match = regex.exec(bodyText)) !== null) {
+    variables.add(match[1].trim());
+  }
+  
+  const uniqueVars = Array.from(variables);
+  const isAllNumeric = uniqueVars.every(v => /^\d+$/.test(v));
+  if (isAllNumeric) {
+    uniqueVars.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  }
+  
+  paramsList.innerHTML = '';
+  
+  if (uniqueVars.length > 0) {
+    uniqueVars.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'form-group';
+      div.innerHTML = `
+        <label class="small fw-semibold text-muted">Variável {{${name}}}</label>
+        <input type="text" class="form-control form-control-sm template-var-input" data-var="${name}" placeholder="Valor para {{${name}}}" required />
+      `;
+      paramsList.appendChild(div);
+    });
+    paramsContainer.classList.remove('d-none');
+  } else {
+    paramsContainer.classList.add('d-none');
+  }
+};
+
+window.submitSendTemplate = async () => {
+  if (!SELECTED_TEMPLATE) return;
+  
+  if (!activeChatId) {
+    Swal.fire('Aviso', 'Selecione uma conversa ativa antes de enviar o modelo.', 'warning');
+    return;
+  }
+  
+  // Collect variables
+  const inputs = document.querySelectorAll('.template-var-input');
+  const sortedInputs = Array.from(inputs);
+  const isAllNumeric = sortedInputs.every(input => /^\d+$/.test(input.dataset.var));
+  if (isAllNumeric) {
+    sortedInputs.sort((a, b) => parseInt(a.dataset.var, 10) - parseInt(b.dataset.var, 10));
+  }
+  const parameters = [];
+  
+  // Validate that all variables have values
+  let allFilled = true;
+  sortedInputs.forEach(input => {
+    const val = input.value.trim();
+    if (!val) {
+      allFilled = false;
+      input.classList.add('is-invalid');
+    } else {
+      input.classList.remove('is-invalid');
+      parameters.push({
+        name: input.dataset.var,
+        value: val
+      });
+    }
+  });
+  
+  if (!allFilled) {
+    Swal.fire('Aviso', 'Por favor, preencha todas as variáveis do modelo.', 'warning');
+    return;
+  }
+  
+  const payload = {
+    type: 'template',
+    templateName: SELECTED_TEMPLATE.name,
+    language: SELECTED_TEMPLATE.language,
+    parameters: parameters
+  };
+  if (activeConversationId) {
+    payload.conversationId = activeConversationId;
+  }
+  
+  const sendBtn = document.getElementById('sendTemplateBtn');
+  if (sendBtn) sendBtn.disabled = true;
+  
+  try {
+    const res = await fetch(`${API_URL}/chats/${activeChatId}/send`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Falha ao enviar modelo');
+    }
+    
+    // Close modal
+    const modalEl = document.getElementById('templatesModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+    
+    // Refresh messages
+    await refreshActiveChat();
+    loadChats();
+    
+    Swal.fire('Sucesso', 'Modelo enviado com sucesso!', 'success');
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro', `Erro ao enviar modelo: ${err.message}`, 'error');
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
+};
+
+// ============================================================
+// NEW CHAT (OUTBOUND TEMPLATE MESSAGE)
+// ============================================================
+let NEW_CHAT_TEMPLATES = [];
+let NEW_CHAT_SELECTED_TEMPLATE = null;
+
+window.openNewChatModal = async () => {
+  const selectEl = document.getElementById('newChatTemplateSelect');
+  if (!selectEl) return;
+  
+  selectEl.innerHTML = '<option value="">Carregando modelos...</option>';
+  
+  // Reset inputs
+  document.getElementById('newChatPhone').value = '';
+  document.getElementById('newChatTemplatePreviewContainer').classList.add('d-none');
+  document.getElementById('newChatTemplateParamsContainer').classList.add('d-none');
+  
+  // Populate connections dropdown
+  const connSelectEl = document.getElementById('newChatConnectionSelect');
+  if (connSelectEl) {
+    connSelectEl.innerHTML = '<option value="">Carregando conexões...</option>';
+  }
+
+  try {
+    // Fetch active connections
+    const connRes = await fetch(`${API_URL}/chats/connections`, {
+      headers: getRequestHeaders()
+    });
+    if (connRes.ok) {
+      const connections = await connRes.json();
+      if (connSelectEl) {
+        if (connections.length === 0) {
+          connSelectEl.innerHTML = '<option value="">Nenhuma conexão de WhatsApp cadastrada</option>';
+        } else {
+          connSelectEl.innerHTML = connections
+            .map(c => `<option value="${c.phoneNumberId}">${c.name} (${c.phoneNumberId})</option>`)
+            .join('');
+        }
+      }
+    }
+    
+    // Fetch templates
+    const res = await fetch(`${API_URL}/templates`, {
+      headers: getRequestHeaders()
+    });
+    
+    if (!res.ok) throw new Error('Falha ao carregar modelos');
+    
+    NEW_CHAT_TEMPLATES = await res.json();
+    
+    selectEl.innerHTML = '<option value="">Selecione um modelo...</option>';
+    
+    const modal = new bootstrap.Modal(document.getElementById('newChatModal'));
+    modal.show();
+
+    if (NEW_CHAT_TEMPLATES.length === 0) {
+      selectEl.innerHTML = '<option value="">Nenhum modelo sincronizado. Vá em Configurações para sincronizar.</option>';
+      return;
+    }
+    
+    NEW_CHAT_TEMPLATES.forEach(t => {
+      const option = document.createElement('option');
+      option.value = t.name;
+      option.textContent = `${t.name} (${t.language})`;
+      selectEl.appendChild(option);
+    });
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro', 'Erro ao carregar os modelos de mensagens.', 'error');
+  }
+};
+
+window.handleNewChatTemplateSelectChange = () => {
+  const selectVal = document.getElementById('newChatTemplateSelect').value;
+  const previewContainer = document.getElementById('newChatTemplatePreviewContainer');
+  const paramsContainer = document.getElementById('newChatTemplateParamsContainer');
+  const previewEl = document.getElementById('newChatTemplatePreview');
+  const paramsList = document.getElementById('newChatTemplateParamsList');
+  
+  if (!selectVal) {
+    previewContainer.classList.add('d-none');
+    paramsContainer.classList.add('d-none');
+    return;
+  }
+  
+  const template = NEW_CHAT_TEMPLATES.find(t => t.name === selectVal);
+  if (!template) return;
+  
+  NEW_CHAT_SELECTED_TEMPLATE = template;
+  
+  // Find BODY component to show preview and find variables
+  let components = template.components || [];
+  if (typeof components === 'string') {
+    try {
+      components = JSON.parse(components);
+    } catch (e) {
+      components = [];
+    }
+  }
+  if (components && !Array.isArray(components) && Array.isArray(components.components)) {
+    components = components.components;
+  }
+  if (!Array.isArray(components)) {
+    components = [];
+  }
+  const bodyComp = components.find(c => c.type === 'BODY');
+  const bodyText = bodyComp ? bodyComp.text : '';
+  
+  previewEl.textContent = bodyText;
+  previewContainer.classList.remove('d-none');
+  
+  // Find all placeholders like {{nome}}, {{1}}, etc.
+  const regex = /\{\{([^}]+)\}\}/g;
+  let match;
+  const variables = new Set();
+  while ((match = regex.exec(bodyText)) !== null) {
+    variables.add(match[1].trim());
+  }
+  
+  const uniqueVars = Array.from(variables);
+  const isAllNumeric = uniqueVars.every(v => /^\d+$/.test(v));
+  if (isAllNumeric) {
+    uniqueVars.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  }
+  
+  paramsList.innerHTML = '';
+  
+  if (uniqueVars.length > 0) {
+    uniqueVars.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'form-group';
+      div.innerHTML = `
+        <label class="small fw-semibold text-muted">Variável {{${name}}}</label>
+        <input type="text" class="form-control form-control-sm new-chat-var-input" data-var="${name}" placeholder="Valor para {{${name}}}" required />
+      `;
+      paramsList.appendChild(div);
+    });
+    paramsContainer.classList.remove('d-none');
+  } else {
+    paramsContainer.classList.add('d-none');
+  }
+};
+
+window.submitNewChat = async () => {
+  const phoneInput = document.getElementById('newChatPhone');
+  const phone = phoneInput.value.trim().replace(/\D/g, ''); // Apenas números
+  
+  if (!phone || phone.length < 10) {
+    Swal.fire('Aviso', 'Por favor, insira um telefone válido com DDI e DDD (ex: 5541999999999).', 'warning');
+    phoneInput.classList.add('is-invalid');
+    return;
+  } else {
+    phoneInput.classList.remove('is-invalid');
+  }
+
+  const connSelectEl = document.getElementById('newChatConnectionSelect');
+  const whatsappPhoneId = connSelectEl ? connSelectEl.value : null;
+  if (!whatsappPhoneId) {
+    Swal.fire('Aviso', 'Por favor, selecione uma conexão de WhatsApp.', 'warning');
+    return;
+  }
+  
+  if (!NEW_CHAT_SELECTED_TEMPLATE) {
+    Swal.fire('Aviso', 'Selecione um modelo de mensagem.', 'warning');
+    return;
+  }
+  
+  // Collect variables
+  const inputs = document.querySelectorAll('.new-chat-var-input');
+  const sortedInputs = Array.from(inputs);
+  const isAllNumeric = sortedInputs.every(input => /^\d+$/.test(input.dataset.var));
+  if (isAllNumeric) {
+    sortedInputs.sort((a, b) => parseInt(a.dataset.var, 10) - parseInt(b.dataset.var, 10));
+  }
+  const parameters = [];
+  
+  let allFilled = true;
+  sortedInputs.forEach(input => {
+    const val = input.value.trim();
+    if (!val) {
+      allFilled = false;
+      input.classList.add('is-invalid');
+    } else {
+      input.classList.remove('is-invalid');
+      parameters.push({
+        name: input.dataset.var,
+        value: val
+      });
+    }
+  });
+  
+  if (!allFilled) {
+    Swal.fire('Aviso', 'Por favor, preencha todas as variáveis do modelo.', 'warning');
+    return;
+  }
+  
+  const payload = {
+    type: 'template',
+    templateName: NEW_CHAT_SELECTED_TEMPLATE.name,
+    language: NEW_CHAT_SELECTED_TEMPLATE.language,
+    parameters: parameters,
+    whatsappPhoneId: whatsappPhoneId
+  };
+  
+  const submitBtn = document.getElementById('submitNewChatBtn');
+  if (submitBtn) submitBtn.disabled = true;
+  
+  try {
+    const res = await fetch(`${API_URL}/chats/${phone}/send`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Falha ao iniciar conversa');
+    }
+    
+    // Close modal
+    const modalEl = document.getElementById('newChatModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+    
+    // Load chats, active the newly created conversation
+    loadChats();
+    await window.selectChat(phone);
+    
+    Swal.fire('Sucesso', 'Conversa iniciada com sucesso!', 'success');
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro', `Erro ao iniciar conversa: ${err.message}`, 'error');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+};
+
+// Verificar e fazer valer a janela de 24 horas da Meta para mensagens livres
+function check24HourWindow(messages) {
+  const chatInput = document.getElementById('chatInput');
+  const mediaBtn = document.querySelector('button[title="Enviar Mídia"]');
+  const quickRepliesBtn = document.querySelector('button[title="Respostas Rápidas"]');
+  const sendBtn = document.querySelector('button[type="submit"]');
+
+  if (!chatInput) return;
+
+  const user = checkAuth();
+  if (user && user.role === 'AGENT') {
+    if (activeChatOwnerId !== user.id) {
+      disableFreeFormChat("Conversa na fila ou com outro agente. Aguarde atribuição.");
+      return;
+    }
+  }
+
+  const inboundMessages = (messages || []).filter(m => m.direction === 'INBOUND');
+
+  if (inboundMessages.length === 0) {
+    disableFreeFormChat("Aguardando resposta do cliente para iniciar chat livre...");
+    return;
+  }
+
+  const lastInbound = inboundMessages[inboundMessages.length - 1];
+  const lastInboundTime = new Date(lastInbound.createdAt).getTime();
+  const now = new Date().getTime();
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+  if (now - lastInboundTime > twentyFourHoursMs) {
+    disableFreeFormChat("Janela de 24h fechada. Envie um Modelo de Mensagem.");
+  } else {
+    enableFreeFormChat();
+  }
+
+  function disableFreeFormChat(placeholderText) {
+    chatInput.disabled = true;
+    chatInput.value = '';
+    chatInput.placeholder = placeholderText;
+    if (mediaBtn) {
+      mediaBtn.style.pointerEvents = 'none';
+      mediaBtn.style.opacity = '0.4';
+    }
+    if (quickRepliesBtn) {
+      quickRepliesBtn.style.pointerEvents = 'none';
+      quickRepliesBtn.style.opacity = '0.4';
+    }
+    if (sendBtn) {
+      sendBtn.style.pointerEvents = 'none';
+      sendBtn.style.opacity = '0.4';
+    }
+  }
+
+  function enableFreeFormChat() {
+    chatInput.disabled = false;
+    chatInput.placeholder = "Mensagem ou /comando";
+    if (mediaBtn) {
+      mediaBtn.style.pointerEvents = 'auto';
+      mediaBtn.style.opacity = '1';
+    }
+    if (quickRepliesBtn) {
+      quickRepliesBtn.style.pointerEvents = 'auto';
+      quickRepliesBtn.style.opacity = '1';
+    }
+    if (sendBtn) {
+      sendBtn.style.pointerEvents = 'auto';
+      sendBtn.style.opacity = '1';
+    }
+  }
+}
+

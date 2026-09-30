@@ -19,7 +19,7 @@ class SuperAdminController {
         userId: req.user.userId
       });
 
-      const [tenants, totalCount] = await Promise.all([
+      const [tenantsRaw, totalCount] = await Promise.all([
         prisma.tenant.findMany({
           select: {
             id: true,
@@ -27,6 +27,21 @@ class SuperAdminController {
             slug: true,
             plan: true,
             active: true,
+            limitMaxAgents: true,
+            limitMaxSupervisors: true,
+            limitMaxAdmins: true,
+            limitWhatsappConnections: true,
+            limitStorageDays: true,
+            limitStorageGb: true,
+            limitActiveCampaigns: true,
+            limitMonthlyOutboundChats: true,
+            featureBotBuilder: true,
+            featureSurvey: true,
+            featureApiAccess: true,
+            featureAiSummary: true,
+            featureQueueAlert: true,
+            featureCloseWebhook: true,
+            featureWebchat: true,
             createdAt: true,
             updatedAt: true,
             _count: {
@@ -39,6 +54,19 @@ class SuperAdminController {
         }),
         prisma.tenant.count()
       ]);
+
+      const tenants = await Promise.all(tenantsRaw.map(async (t) => {
+        const messagesCount = await prisma.message.count({
+          where: { conversation: { tenantId: t.id } }
+        });
+        return {
+          ...t,
+          _count: {
+            ...t._count,
+            messages: messagesCount
+          }
+        };
+      }));
 
       res.json({
         tenants,
@@ -70,7 +98,28 @@ class SuperAdminController {
         });
       }
 
-      const { name, slug, email, password, plan } = validation.data;
+      const {
+        name,
+        slug,
+        email,
+        password,
+        plan,
+        limitMaxAgents,
+        limitMaxSupervisors,
+        limitMaxAdmins,
+        limitWhatsappConnections,
+        limitStorageDays,
+        limitStorageGb,
+        limitActiveCampaigns,
+        limitMonthlyOutboundChats,
+        featureBotBuilder,
+        featureSurvey,
+        featureApiAccess,
+        featureAiSummary,
+        featureQueueAlert,
+        featureCloseWebhook,
+        featureWebchat
+      } = validation.data;
 
       // Verificar slug duplicado
       const existingTenant = await prisma.tenant.findUnique({ where: { slug } });
@@ -95,14 +144,29 @@ class SuperAdminController {
       // Hash password OUTSIDE transaction (bcrypt is slow, could timeout tx)
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Transaction: Create Tenant + First Admin User + Configuration Record
+      // Transaction: Create Tenant + First Admin User
       const result = await prisma.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
           data: {
             name,
             slug,
             plan: plan || 'STARTER',
-            active: true
+            active: true,
+            limitMaxAgents,
+            limitMaxSupervisors,
+            limitMaxAdmins,
+            limitWhatsappConnections,
+            limitStorageDays,
+            limitStorageGb,
+            limitActiveCampaigns,
+            limitMonthlyOutboundChats,
+            featureBotBuilder,
+            featureSurvey,
+            featureApiAccess,
+            featureAiSummary,
+            featureQueueAlert,
+            featureCloseWebhook,
+            featureWebchat
           }
         });
 
@@ -113,27 +177,15 @@ class SuperAdminController {
             password: hashedPassword,
             role: 'OWNER',
             tenantId: tenant.id,
-            workStatus: 'AVAILABLE'
+            workStatus: 'ONLINE'
           }
         });
 
-        // Create empty Configuration record - admin fills credentials later
-        const configuration = await tx.configuration.create({
-          data: {
-            tenantId: tenant.id,
-            phoneNumberId: null,
-            verifyToken: null,
-            whatsappToken: null,
-            metaAppSecret: null,
-            updatedBy: user.id
-          }
-        });
-
-        return { tenant, user, configuration };
+        return { tenant, user };
       });
 
       // Auditoria
-      await logAuditEvent(AuditAction.TENANT_CREATED, {
+      await logAuditEvent(AuditAction.TENANT_CREATE, {
         tenantId: result.tenant.id,
         tenantName: name,
         createdBy: req.user.userId,
@@ -171,32 +223,96 @@ class SuperAdminController {
         return res.status(404).json({ error: 'Tenant not found' });
       }
 
+      logger.warn('[SuperAdmin] updateTenant payload recebido: ' + JSON.stringify(req.body));
+
       // Validar input com schema
       const validation = UpdateTenantSchema.safeParse(req.body);
       if (!validation.success) {
+        logger.error('[SuperAdmin] Zod validation failed details:', validation.error.format());
         return res.status(400).json({
           error: 'Validation failed',
           details: validation.error.flatten().fieldErrors
         });
       }
 
-      const { name, plan, costPerMessage, costPerUser } = validation.data;
+      logger.warn('[SuperAdmin] Zod validation success data: ' + JSON.stringify(validation.data));
+
+      const {
+        name,
+        plan,
+        costPerMessage,
+        costPerUser,
+        limitMaxAgents,
+        limitMaxSupervisors,
+        limitMaxAdmins,
+        limitWhatsappConnections,
+        limitStorageDays,
+        limitStorageGb,
+        limitActiveCampaigns,
+        limitMonthlyOutboundChats,
+        featureBotBuilder,
+        featureSurvey,
+        featureApiAccess,
+        featureAiSummary,
+        featureQueueAlert,
+        featureCloseWebhook,
+        featureWebchat
+      } = validation.data;
 
       // Preparar dados para atualizar (apenas campos fornecidos)
       const updateData = {};
-      if (name !== undefined) updateData.name = name;
-      if (plan !== undefined) updateData.plan = plan;
-      if (costPerMessage !== undefined) updateData.costPerMessage = costPerMessage;
-      if (costPerUser !== undefined) updateData.costPerUser = costPerUser;
+      if (name !== undefined) {updateData.name = name;}
+      if (plan !== undefined) {updateData.plan = plan;}
+      if (costPerMessage !== undefined) {updateData.costPerMessage = costPerMessage;}
+      if (costPerUser !== undefined) {updateData.costPerUser = costPerUser;}
+      if (limitMaxAgents !== undefined) {updateData.limitMaxAgents = limitMaxAgents;}
+      if (limitMaxSupervisors !== undefined) {updateData.limitMaxSupervisors = limitMaxSupervisors;}
+      if (limitMaxAdmins !== undefined) {updateData.limitMaxAdmins = limitMaxAdmins;}
+      if (limitWhatsappConnections !== undefined) {updateData.limitWhatsappConnections = limitWhatsappConnections;}
+      if (limitStorageDays !== undefined) {updateData.limitStorageDays = limitStorageDays;}
+      if (limitStorageGb !== undefined) {updateData.limitStorageGb = limitStorageGb;}
+      if (limitActiveCampaigns !== undefined) {updateData.limitActiveCampaigns = limitActiveCampaigns;}
+      if (limitMonthlyOutboundChats !== undefined) {updateData.limitMonthlyOutboundChats = limitMonthlyOutboundChats;}
+      if (featureBotBuilder !== undefined) {updateData.featureBotBuilder = featureBotBuilder;}
+      if (featureSurvey !== undefined) {updateData.featureSurvey = featureSurvey;}
+      if (featureApiAccess !== undefined) {updateData.featureApiAccess = featureApiAccess;}
+      if (featureAiSummary !== undefined) {updateData.featureAiSummary = featureAiSummary;}
+      if (featureQueueAlert !== undefined) {updateData.featureQueueAlert = featureQueueAlert;}
+      if (featureCloseWebhook !== undefined) {updateData.featureCloseWebhook = featureCloseWebhook;}
+      if (featureWebchat !== undefined) {updateData.featureWebchat = featureWebchat;}
+
+      logger.warn('[SuperAdmin] updateTenant updateData formatado: ' + JSON.stringify(updateData));
 
       const updatedTenant = await prisma.tenant.update({
         where: { id },
         data: updateData,
-        select: { id: true, name: true, plan: true, active: true, updatedAt: true }
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          plan: true,
+          active: true,
+          limitMaxAgents: true,
+          limitMaxSupervisors: true,
+          limitMaxAdmins: true,
+          limitWhatsappConnections: true,
+          limitStorageDays: true,
+          limitStorageGb: true,
+          limitActiveCampaigns: true,
+          limitMonthlyOutboundChats: true,
+          featureBotBuilder: true,
+          featureSurvey: true,
+          featureApiAccess: true,
+          featureAiSummary: true,
+          featureQueueAlert: true,
+          featureCloseWebhook: true,
+          featureWebchat: true,
+          updatedAt: true
+        }
       });
 
       // Auditoria
-      await logAuditEvent(AuditAction.TENANT_UPDATED, {
+      await logAuditEvent(AuditAction.TENANT_UPDATE, {
         tenantId: id,
         changes: Object.keys(updateData),
         updatedBy: req.user.userId
@@ -253,11 +369,11 @@ class SuperAdminController {
       });
 
       // Auditoria
-      const action = active ? AuditAction.TENANT_ACTIVATED : AuditAction.TENANT_DEACTIVATED;
-      await logAuditEvent(action, {
+      await logAuditEvent(AuditAction.TENANT_UPDATE, {
         tenantId: id,
         tenantName: tenant.name,
-        deactivatedBy: req.user.userId
+        deactivatedBy: req.user.userId,
+        details: { active }
       });
 
       logger.info('[SuperAdmin] Tenant status toggled', {
@@ -290,7 +406,22 @@ class SuperAdminController {
           plan: true,
           costPerMessage: true,
           costPerUser: true,
-          currency: true
+          currency: true,
+          limitMaxAgents: true,
+          limitMaxSupervisors: true,
+          limitMaxAdmins: true,
+          limitWhatsappConnections: true,
+          limitStorageDays: true,
+          limitStorageGb: true,
+          limitActiveCampaigns: true,
+          limitMonthlyOutboundChats: true,
+          featureBotBuilder: true,
+          featureSurvey: true,
+          featureApiAccess: true,
+          featureAiSummary: true,
+          featureQueueAlert: true,
+          featureCloseWebhook: true,
+          featureWebchat: true
         }
       });
 
@@ -305,7 +436,7 @@ class SuperAdminController {
       // Parallel Queries
       const [usersTotal, usersOnline, msgsSent, msgsRecv, conversations] = await Promise.all([
         prisma.user.count({ where: { tenantId: id, active: true } }),
-        prisma.user.count({ where: { tenantId: id, workStatus: 'AVAILABLE' } }),
+        prisma.user.count({ where: { tenantId: id, workStatus: 'ONLINE' } }),
         prisma.message.count({
           where: {
             conversation: { tenantId: id },
@@ -336,9 +467,7 @@ class SuperAdminController {
 
       res.json({
         tenant: {
-          id: tenant.id,
-          name: tenant.name,
-          plan: tenant.plan,
+          ...tenant,
           currency: tenant.currency || 'BRL'
         },
         usage: {
@@ -351,6 +480,7 @@ class SuperAdminController {
           costPerUser: tenant.costPerUser || 0,
           estimatedCostMessages: billMessages.toFixed(2),
           estimatedCostUsers: billUsers.toFixed(2),
+          totalEstimated: totalEstimated,
           totalEstimatedMonth: totalEstimated.toFixed(2)
         }
       });
@@ -366,7 +496,6 @@ class SuperAdminController {
   // GET /api/super/metrics - Global system metrics
   static async getGlobalMetrics(req, res) {
     try {
-      // Usar aggregation em vez de loop (FIX N+1)
       const tenantsWithMetrics = await prisma.tenant.findMany({
         select: {
           id: true,
@@ -379,17 +508,20 @@ class SuperAdminController {
           _count: {
             select: {
               users: true,
-              conversations: true,
-              messages: true
+              conversations: true
             }
           }
         }
       });
 
       // Calcular métricas sem N+1 queries
-      const stats = tenantsWithMetrics.map((t) => {
+      const stats = await Promise.all(tenantsWithMetrics.map(async (t) => {
+        const messagesCount = await prisma.message.count({
+          where: { conversation: { tenantId: t.id } }
+        });
+
         const totalCost =
-          t._count.messages * (t.costPerMessage || 0) +
+          messagesCount * (t.costPerMessage || 0) +
           t._count.users * (t.costPerUser || 0);
 
         return {
@@ -399,13 +531,13 @@ class SuperAdminController {
           active: t.active,
           users: t._count.users,
           conversations: t._count.conversations,
-          messagesSent: t._count.messages,
+          messagesSent: messagesCount,
           costPerMessage: t.costPerMessage || 0,
           costPerUser: t.costPerUser || 0,
           estimatedCostTotal: totalCost.toFixed(2),
           currency: t.currency || 'BRL'
         };
-      });
+      }));
 
       // System Totals
       const totalTenants = tenantsWithMetrics.length;
@@ -413,7 +545,7 @@ class SuperAdminController {
       const totalRevenue = stats
         .reduce((acc, curr) => acc + parseFloat(curr.estimatedCostTotal), 0)
         .toFixed(2);
-      const totalMessages = tenantsWithMetrics.reduce((acc, curr) => acc + curr._count.messages, 0);
+      const totalMessages = stats.reduce((acc, curr) => acc + curr.messagesSent, 0);
       const totalUsers = tenantsWithMetrics.reduce((acc, curr) => acc + curr._count.users, 0);
       const totalConversations = tenantsWithMetrics.reduce(
         (acc, curr) => acc + curr._count.conversations,
@@ -441,6 +573,7 @@ class SuperAdminController {
           activeTenants,
           totalRevenue,
           totalMessages,
+          totalMessagesOut: totalMessages, // backward compatibility for frontend
           totalUsers,
           totalConversations,
           systemStatus: 'ONLINE'

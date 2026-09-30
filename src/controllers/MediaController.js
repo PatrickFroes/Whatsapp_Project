@@ -2,10 +2,11 @@
  * MediaController - Controla upload e envio de mídias
  */
 
-const MediaService = const logger = require('../utils/logger');
-const '../services/MediaService');
+const logger = require('../utils/logger');
+const MediaService = require('../services/MediaService');
 const prisma = require('../services/database');
 const { getIO } = require('../services/socket');
+const { validateExternalUrl } = require('../utils/ssrfGuard');
 
 class MediaController {
   /**
@@ -14,7 +15,7 @@ class MediaController {
    */
   static async uploadAndSend(req, res) {
     try {
-      const { phone, caption } = req.body;
+      const { phone, caption, whatsappPhoneId, conversationId } = req.body;
       const { tenantId, userId } = req.user;
       const file = req.file;
 
@@ -29,17 +30,68 @@ class MediaController {
       // Buscar tenant
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { id: true }
+        select: { id: true, limitStorageGb: true }
       });
 
       if (!tenant) {
+        // Limpar arquivo temporário se houver erro
+        const fs = require('fs');
+        if (file.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
         return res.status(400).json({ error: 'Tenant not found' });
       }
+
+      // 🛡️ Validação de Limite de Espaço de Mídia (GB)
+      const sumResult = await prisma.message.aggregate({
+        where: {
+          conversation: { tenantId },
+          mediaSize: { not: null }
+        },
+        _sum: {
+          mediaSize: true
+        }
+      });
+      const currentUsageBytes = sumResult._sum.mediaSize || 0;
+      const limitBytes = tenant.limitStorageGb * 1024 * 1024 * 1024;
+
+      if (tenant.limitStorageGb > 0 && (currentUsageBytes + file.size) > limitBytes) {
+        const fs = require('fs');
+        if (file.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return res.status(403).json({
+          error: `Limite de espaço para mídias atingido. Contratado: ${tenant.limitStorageGb} GB. Uso atual: ${(currentUsageBytes / (1024 * 1024 * 1024)).toFixed(3)} GB.`
+        });
+      }
+
+      // Load target config phone ID
+      let targetPhoneId = whatsappPhoneId;
+      if (!targetPhoneId && conversationId) {
+        const conv = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          select: { whatsappPhoneId: true }
+        });
+        if (conv) {
+          targetPhoneId = conv.whatsappPhoneId;
+        }
+      }
+
+      if (!targetPhoneId) {
+        const firstConfig = await prisma.configuration.findFirst({
+          where: { tenantId }
+        });
+        if (firstConfig) {
+          targetPhoneId = firstConfig.phoneNumberId;
+        }
+      }
+
+      const tenantObj = { id: tenantId, whatsappPhoneId: targetPhoneId };
 
       // Upload para WhatsApp
       const mediaData = await MediaService.uploadToWhatsApp(
         file,
-        tenant
+        tenantObj
       );
 
       // Enviar mensagem
@@ -48,38 +100,68 @@ class MediaController {
         mediaData.mediaId,
         mediaData.mediaType,
         { caption, filename: mediaData.mediaFilename },
-        tenant
+        tenantObj
       );
 
       // Encontrar ou criar contato/conversa
-      let contact = await prisma.contact.findUnique({
-        where: { tenantId_phone: { tenantId, phone } }
-      });
+      const { getBrPhoneOptions } = require('../utils/validators');
+      const phoneOptions = getBrPhoneOptions(phone);
 
-      if (!contact) {
-        contact = await prisma.contact.create({
-          data: { tenantId, phone, name: phone }
-        });
+      const convWhere = {
+        tenantId: tenantId, // SECURITY: Explicit tenant isolation
+        status: {
+          notIn: ['RESOLVED', 'CLOSED']
+        }
+      };
+
+      if (conversationId) {
+        convWhere.id = conversationId;
+      } else {
+        convWhere.contact = { phone: { in: phoneOptions } };
+        if (targetPhoneId) {
+          convWhere.whatsappPhoneId = targetPhoneId;
+        }
       }
 
       let conversation = await prisma.conversation.findFirst({
-        where: {
-          contactId: contact.id,
-          tenantId: tenantId, // SECURITY: Explicit tenant isolation
-          status: {
-            notIn: ['RESOLVED', 'CLOSED']
-          }
+        where: convWhere,
+        include: {
+          contact: true
         },
         orderBy: { lastMessageAt: 'desc' }
       });
 
-      if (!conversation) {
+      if (conversation && conversation.assignedToId !== userId && req.user.role === 'AGENT') {
+        return res.status(403).json({
+          error: 'Acesso negado',
+          details: 'Você não pode interagir com conversas que não estão atribuídas a você.'
+        });
+      }
+
+      let contact;
+      if (conversation) {
+        contact = conversation.contact;
+      } else {
+        contact = await prisma.contact.findFirst({
+          where: {
+            tenantId,
+            phone: { in: phoneOptions }
+          }
+        });
+
+        if (!contact) {
+          contact = await prisma.contact.create({
+            data: { tenantId, phone, name: phone }
+          });
+        }
+
         conversation = await prisma.conversation.create({
           data: {
             contactId: contact.id,
             tenantId,
             status: 'ASSIGNED',
-            assignedToId: userId
+            assignedToId: userId,
+            whatsappPhoneId: targetPhoneId
           }
         });
       }
@@ -144,7 +226,7 @@ class MediaController {
    */
   static async sendByUrl(req, res) {
     try {
-      const { phone, mediaUrl, mediaType, caption, filename } = req.body;
+      const { phone, mediaUrl, mediaType, caption, filename, whatsappPhoneId, conversationId } = req.body;
       const { tenantId, userId } = req.user;
 
       if (!phone || !mediaUrl || !mediaType) {
@@ -161,6 +243,17 @@ class MediaController {
         });
       }
 
+      // Proteção SSRF: validar a URL de mídia fornecida pelo usuário
+      const urlCheck = validateExternalUrl(mediaUrl);
+      if (!urlCheck.valid) {
+        logger.warn('[MediaController] SSRF attempt blocked', {
+          reason: urlCheck.reason,
+          userId,
+          tenantId
+        });
+        return res.status(400).json({ error: 'URL de mídia inválida ou não permitida' });
+      }
+
       // Buscar tenant
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
@@ -171,41 +264,94 @@ class MediaController {
         return res.status(400).json({ error: 'Tenant not found' });
       }
 
+      // Load target config phone ID
+      let targetPhoneId = whatsappPhoneId;
+      if (!targetPhoneId && conversationId) {
+        const conv = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          select: { whatsappPhoneId: true }
+        });
+        if (conv) {
+          targetPhoneId = conv.whatsappPhoneId;
+        }
+      }
+
+      if (!targetPhoneId) {
+        const firstConfig = await prisma.configuration.findFirst({
+          where: { tenantId }
+        });
+        if (firstConfig) {
+          targetPhoneId = firstConfig.phoneNumberId;
+        }
+      }
+
+      const tenantObj = { id: tenantId, whatsappPhoneId: targetPhoneId };
+
       // Enviar
       const waResponse = await MediaService.sendMediaByUrl(
         phone,
         mediaUrl,
         mediaType,
         { caption, filename },
-        tenant
+        tenantObj
       );
 
       // Salvar no banco
-      let contact = await prisma.contact.findUnique({
-        where: { tenantId_phone: { tenantId, phone } }
-      });
+      const { getBrPhoneOptions } = require('../utils/validators');
+      const phoneOptions = getBrPhoneOptions(phone);
 
-      if (!contact) {
-        contact = await prisma.contact.create({
-          data: { tenantId, phone, name: phone }
-        });
+      const convWhere = {
+        tenantId: tenantId, // SECURITY: Explicit tenant isolation
+        status: { notIn: ['RESOLVED', 'CLOSED'] }
+      };
+
+      if (conversationId) {
+        convWhere.id = conversationId;
+      } else {
+        convWhere.contact = { phone: { in: phoneOptions } };
+        if (targetPhoneId) {
+          convWhere.whatsappPhoneId = targetPhoneId;
+        }
       }
 
       let conversation = await prisma.conversation.findFirst({
-        where: {
-          contactId: contact.id,
-          tenantId: tenantId, // SECURITY: Explicit tenant isolation
-          status: { notIn: ['RESOLVED', 'CLOSED'] }
+        where: convWhere,
+        include: {
+          contact: true
         }
       });
 
-      if (!conversation) {
+      if (conversation && conversation.assignedToId !== userId && req.user.role === 'AGENT') {
+        return res.status(403).json({
+          error: 'Acesso negado',
+          details: 'Você não pode interagir com conversas que não estão atribuídas a você.'
+        });
+      }
+
+      let contact;
+      if (conversation) {
+        contact = conversation.contact;
+      } else {
+        contact = await prisma.contact.findFirst({
+          where: {
+            tenantId,
+            phone: { in: phoneOptions }
+          }
+        });
+
+        if (!contact) {
+          contact = await prisma.contact.create({
+            data: { tenantId, phone, name: phone }
+          });
+        }
+
         conversation = await prisma.conversation.create({
           data: {
             contactId: contact.id,
             tenantId,
             status: 'ASSIGNED',
-            assignedToId: userId
+            assignedToId: userId,
+            whatsappPhoneId: targetPhoneId
           }
         });
       }
@@ -248,7 +394,7 @@ class MediaController {
    */
   static async sendLocation(req, res) {
     try {
-      const { phone, latitude, longitude, name, address } = req.body;
+      const { phone, latitude, longitude, name, address, whatsappPhoneId, conversationId } = req.body;
       const { tenantId, userId } = req.user;
 
       if (!phone || !latitude || !longitude) {
@@ -266,40 +412,93 @@ class MediaController {
         return res.status(400).json({ error: 'Tenant not found' });
       }
 
+      // Load target config phone ID
+      let targetPhoneId = whatsappPhoneId;
+      if (!targetPhoneId && conversationId) {
+        const conv = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          select: { whatsappPhoneId: true }
+        });
+        if (conv) {
+          targetPhoneId = conv.whatsappPhoneId;
+        }
+      }
+
+      if (!targetPhoneId) {
+        const firstConfig = await prisma.configuration.findFirst({
+          where: { tenantId }
+        });
+        if (firstConfig) {
+          targetPhoneId = firstConfig.phoneNumberId;
+        }
+      }
+
+      const tenantObj = { id: tenantId, whatsappPhoneId: targetPhoneId };
+
       const waResponse = await MediaService.sendLocation(
         phone,
         latitude,
         longitude,
         { name, address },
-        tenant
+        tenantObj
       );
 
       // Salvar
-      let contact = await prisma.contact.findUnique({
-        where: { tenantId_phone: { tenantId, phone } }
-      });
+      const { getBrPhoneOptions } = require('../utils/validators');
+      const phoneOptions = getBrPhoneOptions(phone);
 
-      if (!contact) {
-        contact = await prisma.contact.create({
-          data: { tenantId, phone, name: phone }
-        });
+      const convWhere = {
+        tenantId: tenantId, // SECURITY: Explicit tenant isolation
+        status: { notIn: ['RESOLVED', 'CLOSED'] }
+      };
+
+      if (conversationId) {
+        convWhere.id = conversationId;
+      } else {
+        convWhere.contact = { phone: { in: phoneOptions } };
+        if (targetPhoneId) {
+          convWhere.whatsappPhoneId = targetPhoneId;
+        }
       }
 
       let conversation = await prisma.conversation.findFirst({
-        where: {
-          contactId: contact.id,
-          tenantId: tenantId, // SECURITY: Explicit tenant isolation
-          status: { notIn: ['RESOLVED', 'CLOSED'] }
+        where: convWhere,
+        include: {
+          contact: true
         }
       });
 
-      if (!conversation) {
+      if (conversation && conversation.assignedToId !== userId && req.user.role === 'AGENT') {
+        return res.status(403).json({
+          error: 'Acesso negado',
+          details: 'Você não pode interagir com conversas que não estão atribuídas a você.'
+        });
+      }
+
+      let contact;
+      if (conversation) {
+        contact = conversation.contact;
+      } else {
+        contact = await prisma.contact.findFirst({
+          where: {
+            tenantId,
+            phone: { in: phoneOptions }
+          }
+        });
+
+        if (!contact) {
+          contact = await prisma.contact.create({
+            data: { tenantId, phone, name: phone }
+          });
+        }
+
         conversation = await prisma.conversation.create({
           data: {
             contactId: contact.id,
             tenantId,
             status: 'ASSIGNED',
-            assignedToId: userId
+            assignedToId: userId,
+            whatsappPhoneId: targetPhoneId
           }
         });
       }
@@ -344,7 +543,7 @@ class MediaController {
   }
 
   /**
-   * GET /api/media/url/:mediaId - Obter URL real da mídia do WhatsApp
+   * GET /api/media/url/:mediaId - Obter URL local de proxy de mídia do WhatsApp
    */
   static async getMediaUrl(req, res) {
     try {
@@ -365,23 +564,23 @@ class MediaController {
         return res.status(404).json({ error: 'Media not found or access denied' });
       }
 
-      // Buscar tenant
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { id: true }
-      });
-
-      if (!tenant) {
-        return res.status(400).json({ error: 'Tenant not found' });
+      // Extrair token cru do request atual para repassar na URL da mídia
+      const authHeader = req.headers['authorization'];
+      let token = authHeader && authHeader.split(' ')[1];
+      if (!token && req.cookies && req.cookies.auth_token) {
+        token = require('../utils/crypto').decrypt(req.cookies.auth_token) || req.cookies.auth_token;
+      }
+      if (!token && req.query && req.query.token) {
+        token = req.query.token;
       }
 
-      // Baixar URL da mídia do WhatsApp
-      const mediaData = await MediaService.downloadFromWhatsApp(mediaId, tenant);
+      // Retorna a rota do nosso próprio proxy local de mídia com o token de autenticação
+      const localUrl = `/api/media/download/${mediaId}?token=${token || ''}`;
 
       res.json({
-        url: mediaData.url,
-        mimeType: mediaData.mimeType,
-        fileSize: mediaData.fileSize
+        url: localUrl,
+        mimeType: message.mediaMimeType || 'audio/ogg',
+        fileSize: message.mediaSize || 0
       });
     } catch (error) {
       logger.error('Get media URL failed:', error);
@@ -389,6 +588,52 @@ class MediaController {
         error: 'Failed to get media URL',
         details: error.message
       });
+    }
+  }
+
+  /**
+   * GET /api/media/download/:mediaId - Stream/Download do binário do arquivo de mídia
+   */
+  static async downloadMediaFile(req, res) {
+    try {
+      const { mediaId } = req.params;
+
+      // Buscar a mensagem associada para descobrir o tenant
+      const message = await prisma.message.findFirst({
+        where: {
+          mediaUrl: mediaId
+        },
+        include: {
+          conversation: true
+        }
+      });
+
+      if (!message || !message.conversation) {
+        return res.status(404).send('Mídia não encontrada.');
+      }
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: message.conversation.tenantId }
+      });
+
+      if (!tenant) {
+        return res.status(404).send('Tenant não encontrado.');
+      }
+
+      const MediaService = require('../services/MediaService');
+      const mediaData = await MediaService.downloadFromWhatsApp(mediaId, tenant);
+
+      // Definir headers e enviar o binário
+      res.set({
+        'Content-Type': mediaData.mimeType,
+        'Content-Length': mediaData.fileSize || mediaData.buffer.length,
+        'Cache-Control': 'public, max-age=86400' // Cache por 1 dia no browser
+      });
+
+      return res.send(mediaData.buffer);
+    } catch (error) {
+      logger.error('Failed to stream media file:', error);
+      res.status(500).send('Failed to stream media file: ' + error.message);
     }
   }
 }

@@ -41,18 +41,32 @@ class WebhookController {
     }
 
     try {
-      // Multi-tenant validation: verify token must match at least one tenant configuration.
-      const config = await prisma.configuration.findFirst({
-        where: { verifyToken },
-        select: { tenantId: true }
-      });
+      const tenantIdParam = req.params.tenantId;
+      let config;
 
-      if (!config) {
-        logger.warn('[Webhook] Verification failed: unknown verify token');
-        return res.sendStatus(403);
+      if (tenantIdParam) {
+        config = await prisma.configuration.findFirst({
+          where: { tenantId: tenantIdParam },
+          select: { tenantId: true, verifyToken: true }
+        });
+
+        if (!config || config.verifyToken !== verifyToken) {
+          logger.warn(`[Webhook] Verification failed: token mismatch for explicit tenant ${tenantIdParam}`);
+          return res.sendStatus(403);
+        }
+      } else {
+        config = await prisma.configuration.findFirst({
+          where: { verifyToken },
+          select: { tenantId: true }
+        });
+
+        if (!config) {
+          logger.warn('[Webhook] Verification failed: unknown verify token');
+          return res.sendStatus(403);
+        }
       }
 
-      logger.debug(`[Webhook] Subscription verified for tenant ${config.tenantId}`);
+      logger.debug(`[Webhook] Subscription verified for tenant ${config.tenantId} (Global Webhook: ${!tenantIdParam})`);
       return res.status(200).send(challenge);
     } catch (error) {
       logger.error('[Webhook] Verification error:', error);
@@ -103,8 +117,9 @@ class WebhookController {
 
             // Processar Mensagens
             if (value.messages && value.messages.length > 0) {
+              const waPhoneId = value.metadata?.phone_number_id;
               for (const message of value.messages) {
-                await WebhookController.processMessage(tenant, value.contacts, message, req.io);
+                await WebhookController.processMessage(tenant, value.contacts, message, req.io, waPhoneId);
               }
             }
 
@@ -122,7 +137,7 @@ class WebhookController {
     }
   }
 
-  static async processMessage(tenant, contacts, msg, io) {
+  static async processMessage(tenant, contacts, msg, io, waPhoneId) {
     // LAW: Only process genuine conversational messages.
     // WhatsApp sends non-conversational events (reactions, read receipts, system) as
     // message-type webhook entries. Without this guard they would create new BOT
@@ -163,12 +178,12 @@ class WebhookController {
     const contactName = contactProfile?.profile?.name || senderPhone;
 
     // 2. Find or Create Contact
-    let contact = await prisma.contact.findUnique({
+    const { getBrPhoneOptions } = require('../utils/validators');
+    const phoneOptions = getBrPhoneOptions(senderPhone);
+    let contact = await prisma.contact.findFirst({
       where: {
-        tenantId_phone: {
-          tenantId: tenant.id,
-          phone: senderPhone
-        }
+        tenantId: tenant.id,
+        phone: { in: phoneOptions }
       }
     });
 
@@ -194,18 +209,28 @@ class WebhookController {
     }
 
     // 3. Find or Create Active Conversation
-    // Strategy: Find any ACTIVE conversation (BOT, QUEUED, ASSIGNED)
-    // RESOLVED and CLOSED sessions must NEVER be reused - always create new
+    // Strategy: Find any ACTIVE conversation (BOT, QUEUED, ASSIGNED) on this phone line
     let conversation = await prisma.conversation.findFirst({
       where: {
         contactId: contact.id,
         tenantId: tenant.id,
         status: {
           in: ['BOT', 'QUEUED', 'ASSIGNED']
-        }
+        },
+        OR: [
+          { whatsappPhoneId: waPhoneId },
+          { whatsappPhoneId: null }
+        ]
       },
       orderBy: { lastMessageAt: 'desc' }
     });
+
+    if (conversation && !conversation.whatsappPhoneId) {
+      conversation = await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { whatsappPhoneId: waPhoneId }
+      });
+    }
 
     // LAW: A QUEUED conversation stuck waiting for business hours must be restarted
     // when the client sends a new message. Without this, FlowEngine skips it
@@ -235,10 +260,11 @@ class WebhookController {
           contactId: contact.id,
           tenantId: tenant.id,
           status: 'BOT',
-          lastMessageAt: new Date()
+          lastMessageAt: new Date(),
+          whatsappPhoneId: waPhoneId
         }
       });
-      logger.debug(`[Webhook] New conversation created: ${conversation.id} for ${senderPhone}`);
+      logger.debug(`[Webhook] New conversation created: ${conversation.id} for ${senderPhone} on line ${waPhoneId}`);
     }
 
     // 4. Save Message
@@ -314,7 +340,6 @@ class WebhookController {
           mediaMimeType,
           mediaFilename,
           waId: msg.id,
-          fromUser: senderPhone,
           senderId: contact.id
         }
       }),
@@ -505,7 +530,6 @@ class WebhookController {
         where: { id: message.id },
         data: {
           status: newStatus,
-          statusUpdatedAt: new Date(),
           ...(newStatus === 'failed' && status.errors && {
             metadata: {
               ...message.metadata,

@@ -12,6 +12,9 @@ router.use(authenticateToken);
 // GET Chats - List conversations
 router.get('/chats', validatePaginationLimits, ChatController.listChats);
 
+// GET Connections - List active WhatsApp lines
+router.get('/chats/connections', ChatController.listConnections);
+
 // GET Messages - Retrieve message history
 router.get('/chats/:phone/messages', validatePaginationLimits, ChatController.getMessages);
 router.get('/history/:phone', validatePaginationLimits, ChatController.getMessages); // Alias for legacy/frontend support
@@ -23,7 +26,7 @@ router.post('/chats/:phone/send', messageSendLimiter, ChatController.sendMessage
 router.post('/chats/:phone/resolve', messageSendLimiter, ChatController.resolveChat);
 
 // Internal Notes (em conversas)
-router.get('/conversations/:conversationId/notes', ChatController.getMessages);
+router.get('/conversations/:conversationId/notes', InternalNoteController.list);
 router.post('/conversations/:conversationId/notes', messageSendLimiter, InternalNoteController.create);
 router.get('/conversations/:conversationId/notes/count', InternalNoteController.count);
 
@@ -36,5 +39,6 @@ router.get('/conversations/:conversationId/transfers', TransferController.listTr
 router.get('/agent/status', ChatController.getStatus);
 router.post('/agent/status', ChatController.updateStatus);
 router.get('/pauses', ChatController.getPauses); // Agent pause reasons
+router.get('/dispositions', ChatController.getDispositions); // Agent close reasons
 
 module.exports = router;

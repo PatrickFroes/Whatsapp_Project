@@ -2,8 +2,8 @@
  * BusinessHoursController - Configuração de horário comercial
  */
 
-const BusinessHoursService = const logger = require('../utils/logger');
-const '../services/BusinessHoursService');
+const logger = require('../utils/logger');
+const BusinessHoursService = require('../services/BusinessHoursService');
 
 class BusinessHoursController {
   /**

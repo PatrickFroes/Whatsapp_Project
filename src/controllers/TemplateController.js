@@ -1,6 +1,5 @@
 const logger = require('../utils/logger');
-const prisma =
-require('../services/database');
+const prisma = require('../services/database');
 const axios = require('axios');
 
 class TemplateController {
@@ -26,7 +25,7 @@ class TemplateController {
     }
 
     // Get Configuration with tenant credentials
-    const config = await prisma.configuration.findUnique({
+    const config = await prisma.configuration.findFirst({
       where: { tenantId }
     });
 
@@ -42,29 +41,76 @@ class TemplateController {
     }
 
     try {
-      // 1. Get WABA ID if missing
-      let wabaId = tenant.waBusinessId;
+      let wabaId = config.wabaId;
+
       if (!wabaId) {
-        // If we have a phone ID, we can find the WABA ID
-        if (!phoneId) {
-          return res.status(400).json({ error: 'No Phone ID to resolve Business ID' });
-        }
-
-        const phoneRes = await axios.get(
-          `https://graph.facebook.com/v18.0/${phoneId}?fields=whatsapp_business_account`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-        wabaId = phoneRes.data.whatsapp_business_account?.id;
-
-        if (wabaId) {
-          await prisma.tenant.update({ where: { id: tenantId }, data: { waBusinessId: wabaId } });
+        logger.info(`[Template Sync] WABA ID not configured for tenant ${tenantId}. Attempting direct resolution...`);
+        try {
+          const phoneRes = await axios.get(
+            `https://graph.facebook.com/v18.0/${phoneId}?fields=whatsapp_business_account`,
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+          wabaId = phoneRes.data.whatsapp_business_account?.id;
+        } catch (err) {
+          logger.warn(`[Template Sync] Direct WABA fetch failed for phone ${phoneId}: ${err.message}. Trying business discovery fallback...`);
         }
       }
 
       if (!wabaId) {
-        return res.status(400).json({ error: 'Could not resolve WhatsApp Business Account ID' });
+        // Fallback: list businesses -> list owned WABAs -> match phone ID
+        try {
+          const businessesResponse = await axios.get(
+            'https://graph.facebook.com/v18.0/me/businesses',
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+          const businesses = businessesResponse.data?.data || [];
+
+          for (const business of businesses) {
+            try {
+              const wabaResponse = await axios.get(
+                `https://graph.facebook.com/v18.0/${business.id}/owned_whatsapp_business_accounts`,
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+              const accounts = wabaResponse.data?.data || [];
+              for (const account of accounts) {
+                try {
+                  const numbersResponse = await axios.get(
+                    `https://graph.facebook.com/v18.0/${account.id}/phone_numbers`,
+                    {
+                      headers: { Authorization: `Bearer ${token}` }
+                    }
+                  );
+                  const numbers = numbersResponse.data?.data || [];
+                  const hasMatchingNumber = numbers.some(n => n.id === phoneId);
+                  if (hasMatchingNumber) {
+                    wabaId = account.id;
+                    logger.info(`[Template Sync] WABA ID found via fallback discovery: ${wabaId}`);
+                    break;
+                  }
+                } catch (numErr) {
+                  logger.debug(`[Template Sync] Could not list numbers for WABA ${account.id}: ${numErr.message}`);
+                }
+              }
+              if (wabaId) {break;}
+            } catch (wabaErr) {
+              logger.debug(`[Template Sync] Could not list WABAs for business ${business.id}: ${wabaErr.message}`);
+            }
+          }
+        } catch (fallbackErr) {
+          logger.error(`[Template Sync] WABA discovery fallback failed: ${fallbackErr.message}`);
+        }
+      }
+
+      if (!wabaId) {
+        return res.status(400).json({
+          error: 'Could not resolve WhatsApp Business Account ID. Please configure WABA ID manually in the configuration page.'
+        });
       }
 
       // 2. Fetch Templates from Meta
@@ -110,7 +156,8 @@ class TemplateController {
 
       res.json({ success: true, count, total_fetched: data.length });
     } catch (e) {
-      logger.error('Template Sync Error:', e.response?.data || e.message);
+      const metaErrorMessage = e.response?.data?.error?.message || e.message;
+      logger.error('Template Sync Error:', new Error(metaErrorMessage));
       res.status(500).json({ error: 'Failed to sync with Meta. Check permissions.' });
     }
   }

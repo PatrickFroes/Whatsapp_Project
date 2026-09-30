@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../services/database');
 const logger = require('../utils/logger');
+const { encrypt, hashString } = require('../utils/crypto');
 const { recordFailedLogin, clearLoginAttempts } = require('../middleware/loginRateLimiter');
 const {
   validateEmail,
@@ -77,14 +78,22 @@ class AuthController {
         return { tenant, user };
       });
 
+      const userAgent = req.headers['user-agent'] || '';
+      const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       const token = jwt.sign(
-        { userId: result.user.id, tenantId: result.tenant.id, role: result.user.role },
+        {
+          userId: result.user.id,
+          tenantId: result.tenant.id,
+          role: result.user.role,
+          uaHash: hashString(userAgent),
+          ip: clientIp
+        },
         SECRET_KEY,
         { expiresIn: '24h' }
       );
 
       // Set auth cookie for server-side page protection
-      res.cookie('auth_token', token, {
+      res.cookie('auth_token', encrypt(token), {
         httpOnly: true,
         secure: true, // obrigatório para SameSite=None
         sameSite: 'None', // permite cross-domain em iframe
@@ -128,7 +137,6 @@ class AuthController {
         return res.status(401).json({ error: 'Credenciais inválidas' });
       }
 
-      logger.info(`[LOGIN DEBUG] Searching for user with email: ${validatedEmail}`);
 
       const user = await prisma.user.findUnique({
         where: { email: validatedEmail },
@@ -136,18 +144,19 @@ class AuthController {
       });
 
       if (!user) {
-        logger.warn(`[LOGIN DEBUG] User not found: ${validatedEmail}`);
+        logger.warn('[AUTH] Failed login attempt — user not found', { ip: req.ip });
         // Mensagem genérica - não revela se email existe
         return res.status(401).json({ error: 'Credenciais inválidas' });
       }
 
-      logger.info(`[LOGIN DEBUG] User found: ${user.email}, role: ${user.role}`);
-
       const isValidValues = await bcrypt.compare(password, user.password);
-      logger.info(`[LOGIN DEBUG] Password comparison result: ${isValidValues}`);
 
       if (!isValidValues) {
-        logger.warn(`[LOGIN DEBUG] Password mismatch for user: ${validatedEmail}`);
+        logger.warn('[AUTH] Failed login attempt — invalid password', {
+          ip: req.ip,
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        });
         // Registrar tentativa falhada no novo sistema (por device, não por IP)
         await recordFailedLogin(validatedEmail, req.deviceId);
         return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -157,20 +166,66 @@ class AuthController {
         return res.status(403).json({ error: 'Conta do tenant está inativa' });
       }
 
+      // 🛡️ Validação de Limites de Usuários Simultâneos (SaaS)
+      if (user.role !== 'SUPER_ADMIN') {
+        const threshold = new Date(Date.now() - 2 * 60 * 1000); // 2 minutos
+        const activeSessions = await prisma.userSession.count({
+          where: {
+            tenantId: user.tenantId,
+            role: user.role,
+            updatedAt: { gte: threshold }
+          }
+        });
+
+        let limit = 0;
+        let roleName = '';
+        if (user.role === 'AGENT') {
+          limit = user.tenant.limitMaxAgents;
+          roleName = 'agentes';
+        } else if (user.role === 'SUPERVISOR') {
+          limit = user.tenant.limitMaxSupervisors;
+          roleName = 'supervisores';
+        } else if (user.role === 'ADMIN' || user.role === 'OWNER') {
+          limit = user.tenant.limitMaxAdmins;
+          roleName = 'administradores';
+        }
+
+        if (limit > 0 && activeSessions >= limit) {
+          logger.warn('[AUTH] Login blocked — concurrent session limit reached', {
+            tenantId: user.tenantId,
+            userId: user.id,
+            role: user.role,
+            activeSessions,
+            limit
+          });
+          return res.status(403).json({ 
+            error: `Limite de conexões simultâneas atingido para o perfil de ${roleName} (${limit} licenças).` 
+          });
+        }
+      }
+
       // Update last login / availability ?
       // await prisma.user.update(...)
-      
+
       // Limpar tentativas falhadas pois o login foi bem-sucedido
       await clearLoginAttempts(validatedEmail, req.deviceId);
 
+      const userAgent = req.headers['user-agent'] || '';
+      const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
       const token = jwt.sign(
-        { userId: user.id, tenantId: user.tenantId, role: user.role },
+        {
+          userId: user.id,
+          tenantId: user.tenantId,
+          role: user.role,
+          uaHash: hashString(userAgent),
+          ip: clientIp
+        },
         SECRET_KEY,
         { expiresIn: '24h' }
       );
 
       // Set auth cookie for server-side page protection
-      res.cookie('auth_token', token, {
+      res.cookie('auth_token', encrypt(token), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'Lax',
@@ -227,6 +282,21 @@ class AuthController {
   }
 
   static async logout(req, res) {
+    try {
+      const { decrypt } = require('../utils/crypto');
+      let token = req.cookies && req.cookies.auth_token;
+      if (token) {
+        const decrypted = decrypt(token);
+        token = decrypted || token;
+        
+        await prisma.userSession.delete({
+          where: { token }
+        }).catch(() => {});
+      }
+    } catch (e) {
+      logger.error('[AUTH] Error during session cleanup on logout:', e.message);
+    }
+
     // Clear auth cookie
     res.clearCookie('auth_token', { path: '/' });
     res.json({ message: 'Logout successful' });

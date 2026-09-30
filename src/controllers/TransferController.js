@@ -2,8 +2,8 @@
  * TransferController - Transferências de conversas
  */
 
-const TransferService = const logger = require('../utils/logger');
-const '../services/TransferService');
+const TransferService = require('../services/TransferService');
+const logger = require('../utils/logger');
 const prisma = require('../services/database');
 
 class TransferController {
@@ -33,6 +33,11 @@ class TransferController {
         return res
           .status(404)
           .json({ error: 'Conversation not found, already closed, or access denied' });
+      }
+
+      // Enforce agent assignment check
+      if (req.user.role === 'AGENT' && conversation.assignedToId !== userId) {
+        return res.status(403).json({ error: 'Acesso negado. Esta conversa não está atribuída a você.' });
       }
 
       const result = await TransferService.transfer(
@@ -79,6 +84,11 @@ class TransferController {
         return res
           .status(404)
           .json({ error: 'Conversation not found, already closed, or access denied' });
+      }
+
+      // Enforce agent assignment check
+      if (req.user.role === 'AGENT' && conversation.assignedToId !== userId) {
+        return res.status(403).json({ error: 'Acesso negado. Esta conversa não está atribuída a você.' });
       }
 
       const result = await TransferService.transferToSkill(conversationId, skillId, userId, notes);
@@ -196,9 +206,9 @@ class TransferController {
         name: agent.name,
         email: agent.email,
         workStatus: agent.workStatus,
-        activeChats: agent._count.assignedConversations,
+        activeChats: agent.assignedConversations.length,
         maxChats: agent.maxChats,
-        available: agent._count.assignedConversations < agent.maxChats
+        available: agent.assignedConversations.length < agent.maxChats
       }));
 
       // Ordenar por disponibilidade

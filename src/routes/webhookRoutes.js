@@ -57,4 +57,18 @@ router.post('/whatsapp', (req, res, next) => {
   next();
 }, validateWebhookHmac, WebhookController.handle);
 
+// Tenant-specific Webhook Routes (Recommended for true multi-tenancy)
+router.get('/:tenantId', (req, res, next) => {
+  logger.debug(`[Webhook GET /:tenantId] Verification request for tenant: ${req.params.tenantId}`, req.query);
+  WebhookController.verify(req, res, next);
+});
+
+router.post('/:tenantId', (req, res, next) => {
+  logger.debug(`[Webhook POST /:tenantId] Event received for tenant: ${req.params.tenantId}`);
+  next();
+}, webhookLimiter, (req, res, next) => {
+  logger.debug(`[Webhook POST /:tenantId] Passed rate limiter, validating HMAC for tenant: ${req.params.tenantId}`);
+  next();
+}, validateWebhookHmac, WebhookController.handle);
+
 module.exports = router;

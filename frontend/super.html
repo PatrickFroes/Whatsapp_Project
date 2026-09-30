@@ -12,9 +12,10 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
     />
+    <link rel="stylesheet" href="css/amberfy_theme.css?v=1.1" />
     <style>
       .card-metric {
-        border-left: 5px solid #0d6efd;
+        border-left: 5px solid var(--color-primary) !important;
         transition: transform 0.2s;
       }
       .card-metric:hover {
@@ -211,6 +212,109 @@
                   </div>
                 </div>
               </div>
+
+              <hr class="my-4" />
+
+              <h6 class="text-primary mb-3">
+                <i class="bi bi-sliders"></i> Recursos e Limites Modulares (à la Carte)
+              </h6>
+              
+              <div class="row g-3 mb-3">
+                <!-- Limites Quantitativos -->
+                <div class="col-md-6">
+                  <div class="card p-3 bg-light border-0 shadow-sm h-100">
+                    <h6 class="card-subtitle mb-3 text-muted">Limites Numéricos</h6>
+                    
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Agentes Simultâneos</label>
+                      <input type="number" min="1" class="form-control form-control-sm" id="confMaxAgents" />
+                    </div>
+                    
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Supervisores Simultâneos</label>
+                      <input type="number" min="0" class="form-control form-control-sm" id="confMaxSupervisors" />
+                    </div>
+                    
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Administradores Simultâneos</label>
+                      <input type="number" min="1" class="form-control form-control-sm" id="confMaxAdmins" />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Conexões de WhatsApp (Canais)</label>
+                      <input type="number" min="1" class="form-control form-control-sm" id="confWhatsappConnections" />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Retenção de Histórico (Dias)</label>
+                      <input type="number" min="0" class="form-control form-control-sm" id="confStorageDays" placeholder="0 = Ilimitado" />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Espaço para Mídia (GB)</label>
+                      <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="confStorageGb" />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Campanhas Simultâneas</label>
+                      <input type="number" min="1" class="form-control form-control-sm" id="confActiveCampaigns" />
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small mb-1">Disparos Mensais (Franquia)</label>
+                      <input type="number" min="0" class="form-control form-control-sm" id="confMonthlyOutboundChats" placeholder="0 = Ilimitado" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Limites Qualitativos -->
+                <div class="col-md-6">
+                  <div class="card p-3 bg-light border-0 shadow-sm h-100 d-flex flex-column justify-content-between">
+                    <div>
+                      <h6 class="card-subtitle mb-3 text-muted">Módulos Qualitativos</h6>
+                      
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatBot" />
+                        <label class="form-check-label small" for="confFeatBot">Módulo URA / Chatbot Builder</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatSurvey" />
+                        <label class="form-check-label small" for="confFeatSurvey">Módulo de Pesquisa NPS</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatApi" />
+                        <label class="form-check-label small" for="confFeatApi">Módulo API Externa & Webhooks</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatAi" />
+                        <label class="form-check-label small" for="confFeatAi">Módulo IA: Resumos & Sentimentos</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatQueueAlert" />
+                        <label class="form-check-label small" for="confFeatQueueAlert">Alerta de Tempo na Fila</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatCloseWebhook" />
+                        <label class="form-check-label small" for="confFeatCloseWebhook">Webhook de Encerramento de Chat</label>
+                      </div>
+
+                      <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="confFeatWebchat" />
+                        <label class="form-check-label small" for="confFeatWebchat">Módulo Canal Webchat</label>
+                      </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 mt-4" onclick="saveTenantLimits()">
+                      Salvar Limites e Módulos
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -222,13 +326,86 @@
     <script>
       const API_URL = '/api/super';
 
-      function getAuthHeaders() {
-        const token = localStorage.getItem('token');
-        if (!token) window.location.href = '/login.html';
-        return {
+      let inMemoryToken = null;
+      function getSuperToken() {
+        const isIframe = window.self !== window.top;
+        if (!isIframe) return null;
+        return inMemoryToken || null;
+      }
+
+      function getAuthHeaders(extraHeaders = {}) {
+        const headers = {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          ...extraHeaders
         };
+        const token = getSuperToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+      }
+
+      async function validateSession() {
+        document.body.style.display = 'none';
+        
+        const isIframe = window.self !== window.top;
+        if (!isIframe) {
+          localStorage.removeItem('token');
+        }
+
+        if (isIframe) {
+          const tokenFromWindowName = window.name;
+          if (tokenFromWindowName && tokenFromWindowName.startsWith('eyJ')) {
+            inMemoryToken = tokenFromWindowName;
+            try {
+              const res = await fetch('/api/auth/me', {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${inMemoryToken}`
+                }
+              });
+              if (!res.ok) {
+                window.name = '';
+                window.location.href = '/login.html';
+                return false;
+              }
+              window.name = '';
+              const user = await res.json();
+              if (user.role !== 'SUPER_ADMIN') {
+                window.location.href = '/login.html';
+                return false;
+              }
+              document.body.style.display = '';
+              return true;
+            } catch (e) {
+              window.name = '';
+              window.location.href = '/login.html';
+              return false;
+            }
+          } else {
+            window.location.href = '/login.html';
+            return false;
+          }
+        } else {
+          // Aba normal
+          try {
+            const res = await fetch('/api/auth/me');
+            if (!res.ok) {
+              window.location.href = '/login.html';
+              return false;
+            }
+            const user = await res.json();
+            if (user.role !== 'SUPER_ADMIN') {
+              window.location.href = '/login.html';
+              return false;
+            }
+            document.body.style.display = '';
+            return true;
+          } catch (e) {
+            window.location.href = '/login.html';
+            return false;
+          }
+        }
       }
 
       async function loadMetrics() {
@@ -240,7 +417,7 @@
             return;
           }
           const data = await res.json();
-          document.getElementById('metricTenants').innerText = data.overview.totalTenants || 0;
+          document.getElementById('metricTenants').innerText = data.overview.activeTenants || 0;
           document.getElementById('metricUsers').innerText = data.overview.totalUsers || 0;
           document.getElementById('metricMessages').innerText = data.overview.totalMessagesOut || 0;
         } catch (e) {
@@ -258,15 +435,16 @@
           const res = await fetch(`${API_URL}/tenants`, { headers: getAuthHeaders() });
           const data = await res.json();
 
+          const tenantsList = Array.isArray(data) ? data : (data.tenants || []);
           list.innerHTML = '';
-          data.forEach((t) => {
+          tenantsList.forEach((t) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                         <td>${escapeHtml(t.name)}</td>
                         <td><span class="badge bg-light text-dark font-monospace">${escapeHtml(t.slug)}</span></td>
                         <td>${escapeHtml(t.plan.toUpperCase())}</td>
                         <td>${t._count?.users || 0}</td>
-                        <td>${t._count?.conversations || 0}</td>
+                        <td>${t._count?.messages !== undefined ? t._count.messages : (t._count?.conversations || 0)}</td>
                         <td>
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" ${t.active ? 'checked' : ''} onchange="toggleStatus('${t.id}', this.checked)">
@@ -297,7 +475,7 @@
         document.getElementById('metricsContent').style.display = 'none';
 
         try {
-          const res = await fetch(`${API_URL}/tenants/${id}/analytics`, {
+          const res = await fetch(`${API_URL}/tenants/${id}/analytics?t=${Date.now()}`, {
             headers: getAuthHeaders()
           });
           const data = await res.json();
@@ -306,6 +484,24 @@
 
           document.getElementById('confCostMsg').value = data.financial.costPerMessage;
           document.getElementById('confCostUser').value = data.financial.costPerUser;
+
+          // Preencher limites modulares
+          document.getElementById('confMaxAgents').value = data.tenant.limitMaxAgents || 5;
+          document.getElementById('confMaxSupervisors').value = data.tenant.limitMaxSupervisors || 0;
+          document.getElementById('confMaxAdmins').value = data.tenant.limitMaxAdmins || 1;
+          document.getElementById('confWhatsappConnections').value = data.tenant.limitWhatsappConnections || 1;
+          document.getElementById('confStorageDays').value = data.tenant.limitStorageDays || 0;
+          document.getElementById('confStorageGb').value = data.tenant.limitStorageGb || 2.0;
+          document.getElementById('confActiveCampaigns').value = data.tenant.limitActiveCampaigns || 1;
+          document.getElementById('confMonthlyOutboundChats').value = data.tenant.limitMonthlyOutboundChats || 0;
+
+          document.getElementById('confFeatBot').checked = !!data.tenant.featureBotBuilder;
+          document.getElementById('confFeatSurvey').checked = !!data.tenant.featureSurvey;
+          document.getElementById('confFeatApi').checked = !!data.tenant.featureApiAccess;
+          document.getElementById('confFeatAi').checked = !!data.tenant.featureAiSummary;
+          document.getElementById('confFeatQueueAlert').checked = !!data.tenant.featureQueueAlert;
+          document.getElementById('confFeatCloseWebhook').checked = !!data.tenant.featureCloseWebhook;
+          document.getElementById('confFeatWebchat').checked = !!data.tenant.featureWebchat;
 
           document.getElementById('statMsgSent').innerText = data.usage.messages.sent;
           document.getElementById('statMsgRecv').innerText = data.usage.messages.received;
@@ -323,8 +519,8 @@
       }
 
       async function saveTenantBilling() {
-        const costPerMessage = document.getElementById('confCostMsg').value;
-        const costPerUser = document.getElementById('confCostUser').value;
+        const costPerMessage = parseFloat(document.getElementById('confCostMsg').value) || 0;
+        const costPerUser = parseFloat(document.getElementById('confCostUser').value) || 0;
 
         try {
           const res = await fetch(`${API_URL}/tenants/${currentTenantId}`, {
@@ -334,13 +530,51 @@
           });
 
           if (res.ok) {
-            Swal.fire('Salvo', 'Configurações atualizadas', 'success');
+            Swal.fire('Salvo', 'Configurações de cobrança atualizadas', 'success');
             loadTenantAnalytics(currentTenantId);
           } else {
-            Swal.fire('Erro', 'Falha ao salvar', 'error');
+            Swal.fire('Erro', 'Falha ao salvar cobrança', 'error');
           }
         } catch (e) {
           console.error(e);
+        }
+      }
+
+      async function saveTenantLimits() {
+        const payload = {
+          limitMaxAgents: parseInt(document.getElementById('confMaxAgents').value) || 5,
+          limitMaxSupervisors: parseInt(document.getElementById('confMaxSupervisors').value) || 0,
+          limitMaxAdmins: parseInt(document.getElementById('confMaxAdmins').value) || 1,
+          limitWhatsappConnections: parseInt(document.getElementById('confWhatsappConnections').value) || 1,
+          limitStorageDays: parseInt(document.getElementById('confStorageDays').value) || 0,
+          limitStorageGb: parseFloat(document.getElementById('confStorageGb').value) || 2.0,
+          limitActiveCampaigns: parseInt(document.getElementById('confActiveCampaigns').value) || 1,
+          limitMonthlyOutboundChats: parseInt(document.getElementById('confMonthlyOutboundChats').value) || 0,
+          featureBotBuilder: document.getElementById('confFeatBot').checked,
+          featureSurvey: document.getElementById('confFeatSurvey').checked,
+          featureApiAccess: document.getElementById('confFeatApi').checked,
+          featureAiSummary: document.getElementById('confFeatAi').checked,
+          featureQueueAlert: document.getElementById('confFeatQueueAlert').checked,
+          featureCloseWebhook: document.getElementById('confFeatCloseWebhook').checked,
+          featureWebchat: document.getElementById('confFeatWebchat').checked
+        };
+
+        try {
+          const res = await fetch(`${API_URL}/tenants/${currentTenantId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            Swal.fire('Salvo', 'Limites e módulos atualizados com sucesso!', 'success');
+            loadTenantAnalytics(currentTenantId);
+          } else {
+            Swal.fire('Erro', 'Falha ao salvar limites e módulos', 'error');
+          }
+        } catch (e) {
+          console.error(e);
+          Swal.fire('Erro', 'Erro ao salvar limites', 'error');
         }
       }
 
@@ -372,7 +606,18 @@
             loadMetrics();
           } else {
             const err = await res.json();
-            Swal.fire('Erro', err.error, 'error');
+            let msg = err.error || 'Erro ao criar cliente';
+            if (err.details) {
+              const details = Object.entries(err.details)
+                .map(([field, errors]) => `<strong>${field}</strong>: ${errors.join(', ')}`)
+                .join('<br>');
+              msg += `<br><br>${details}`;
+            }
+            Swal.fire({
+              icon: 'error',
+              title: 'Erro',
+              html: msg
+            });
           }
         } catch (e) {
           console.error(e);
@@ -404,8 +649,12 @@
         window.location.href = '/login.html';
       }
 
-      loadMetrics();
-      loadTenants();
+      validateSession().then((ok) => {
+        if (ok) {
+          loadMetrics();
+          loadTenants();
+        }
+      });
     </script>
     <script src="js/security.js"></script>
   </body>

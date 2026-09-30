@@ -3,97 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Política de Privacidade - Broker</title>
+    <title>Política de Privacidade e Uso do Sistema - Amber</title>
+    <link rel="stylesheet" href="css/amberfy_theme.css" />
     <style>
+        /* Paleta de Cores baseada na identidade visual da Amber */
+        :root {
+            --bg-color: var(--color-bg-main);
+            --text-color: var(--color-text-main);
+            --highlight-color: var(--color-primary);
+            --title-color: var(--color-text-title);
+            --element-bg: var(--color-bg-card);
+            --border-color: #E2E2E2;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 1000px;
+            font-family: var(--font-family-base);
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            max-width: 900px;
             margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.8;
-            color: #333;
-            background-color: #f5f5f5;
+            padding: 30px;
         }
-        .container {
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+        h1 {
+            color: var(--title-color);
+            border-bottom: 3px solid var(--highlight-color);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.2em;
         }
-        h1 { 
-            color: #2c3e50; 
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 10px;
+
+        h2 {
+            color: var(--highlight-color);
+            margin-top: 40px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            font-size: 1.5em;
         }
-        h2 { 
-            color: #34495e;
-            margin-top: 35px;
+
+        p {
             margin-bottom: 15px;
         }
-        h3 {
-            color: #5d6d7b;
-            margin-top: 20px;
+
+        strong {
+            color: var(--title-color);
         }
-        .last-updated { 
-            color: #7f8c8d; 
-            font-style: italic;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }
-        ul, ol {
-            margin-left: 20px;
-        }
-        li {
-            margin: 8px 0;
-        }
-        .highlight {
-            background-color: #fff3cd;
-            padding: 15px;
-            border-left: 4px solid #ffc107;
-            margin: 20px 0;
-        }
+
+        /* Estilização da Tabela */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 25px 0;
+            background-color: var(--element-bg);
+            border-radius: 8px;
+            overflow: hidden; /* Mantém os cantos arredondados */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
-        table th, table td {
-            border: 1px solid #ddd;
-            padding: 12px;
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 15px;
             text-align: left;
         }
-        table th {
-            background-color: #f8f9fa;
+
+        th {
+            background-color: #252836;
+            color: var(--title-color);
             font-weight: bold;
+            border-bottom: 2px solid var(--highlight-color);
+        }
+
+        td {
+            color: var(--text-color);
+        }
+
+        /* Estilização das Listas */
+        ul {
+            margin-bottom: 20px;
+            background-color: var(--element-bg);
+            padding: 20px 20px 20px 40px;
+            border-left: 4px solid var(--highlight-color);
+            border-radius: 0 8px 8px 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        a {
+            color: var(--highlight-color);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Política de Privacidade</h1>
-        <p class="last-updated">Última atualização: 08 de Abril de 2026 | Vigente desde: 08 de Abril de 2026</p>
 
-        <div class="highlight">
-            <strong>Aviso Importante:</strong> Esta Política de Privacidade descreve como a Broker coleta, usa, divulga e protege os dados pessoais dos usuários da plataforma de chatbot WhatsApp Business, em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018) e regulamentações aplicáveis.
-        </div>
+    <h1>Política de Privacidade e Uso do Sistema</h1>
+    <p>Esta Política de Privacidade estabelece como a infraestrutura homologada (oficial ou via API robusta) que faz a ponte entre o formulário do seu site e a API do WhatsApp (Broker Amberfy) coleta, utiliza, divulga e protege os dados e as conversas dos usuários durante o uso de mensagens pela plataforma WhatsApp Business integrada ao sistema Amberfy. E descreve como as informações são tratadas, em conformidade com a Lei Geral de Proteção de Dados – Lei nº 13.709/2018 e demais regulamentações aplicáveis.</p>
 
-        <h2>1. Identificação do Controlador de Dados</h2>
-        <p><strong>Empresa:</strong> Broker</p>
-        <p><strong>Endereço:</strong> https://broker.amber.com.br</p>
-        <p><strong>Email de Contato:</strong> suporte@broker.amber.com.br</p>
-        <p>A Broker atua como controladora dos dados pessoais coletados através dessa plataforma de mensageria via WhatsApp Business.</p>
+    <h2>Identificação do Controlador de Dados</h2>
+    <ul>
+        <li><strong>Empresa:</strong> Amber Serviços de Tecnologia Ltda.</li>
+        <li><strong>Endereço:</strong> <a href="http://www.amber.com.br" target="_blank">www.amber.com.br</a></li>
+    </ul>
+    <p>A Amber atua como controladora dos dados pessoais coletados por meio da plataforma Amberfy, que inclui funcionalidades de mensageria via WhatsApp Business. Esta Política se refere unicamente às funcionalidades prestadas pela Ferramenta, não se aplicando a sites ou serviços de terceiros. Por isso, a Amber informa e recomenda que o Usuário sempre esteja atento e ciente aos Termos de Uso e Políticas de Privacidade desses terceiros, pois não se responsabilizará por conduta externa.</p>
 
-        <h2>2. O que é Dados Pessoais?</h2>
-        <p>Nesta política, "dados pessoais" refere-se a qualquer informação que identifique ou possa identificar um indivíduo, diretamente ou em combinação com outras informações.</p>
+    <h2>Dados pessoais</h2>
+    <p>Para os fins desta Política, "Dados Pessoais" compreendem qualquer informação relacionada a uma pessoa natural identificada ou identificável. Isso inclui dados que permitam a identificação direta do titular ou que, quando agregados a outros ativos de informação, possam individualizá-lo de forma indireta.</p>
 
-        <h2>3. Dados que Coletamos</h2>
-        <p>Coletamos os seguintes tipos de dados pessoais:</p>
-        <table>
+    <h2>Coleta de dados</h2>
+    <p>São coletados os seguintes tipos de dados:</p>
+    <table>
+        <thead>
             <tr>
                 <th>Tipo de Dado</th>
                 <th>Fonte</th>
                 <th>Finalidade</th>
             </tr>
+        </thead>
+        <tbody>
             <tr>
                 <td>Número de telefone WhatsApp</td>
                 <td>Fornecido pelo usuário</td>
@@ -106,12 +140,12 @@
             </tr>
             <tr>
                 <td>Conteúdo de mensagens</td>
-                <td>Mensagens enviadas ao bot</td>
+                <td>Mensagens enviadas ao sistema pelo usuário</td>
                 <td>Processamento de pedidos e atendimento</td>
             </tr>
             <tr>
                 <td>Histórico de interações</td>
-                <td>Sistema de chatbot</td>
+                <td>Mensagens enviadas ao sistema pelo usuário</td>
                 <td>Melhoria de serviço e análise</td>
             </tr>
             <tr>
@@ -119,144 +153,131 @@
                 <td>WhatsApp Business API</td>
                 <td>Auditoria e conformidade</td>
             </tr>
-        </table>
+        </tbody>
+    </table>
 
-        <h2>4. Bases Legais para o Processamento (LGPD)</h2>
-        <p>Conforme artigo 7 da LGPD, processamos dados pessoais baseado em uma ou mais das seguintes bases legais:</p>
-        <ul>
-            <li><strong>Consentimento:</strong> Você concorda expressa e livremente com o uso de seus dados</li>
-            <li><strong>Execução de Contrato:</strong> Necessário para fornecer os serviços solicitados</li>
-            <li><strong>Cumprimento de Obrigação Legal:</strong> Requisitos regulatórios e leis aplicáveis</li>
-            <li><strong>Proteção de Crédito:</strong> Proteção de direitos e prevenção de fraude</li>
-        </ul>
+    <h2>Bases Legais para o Tratamento de Dados Pessoais (LGPD)</h2>
+    <p>Conforme o artigo 7º da Lei Geral de Proteção de Dados (LGPD), o tratamento de dados pessoais realizado pela Broker Amberfy fundamenta-se nas seguintes hipóteses legais, conforme a finalidade da interação:</p>
+    <ul>
+        <li><strong>Consentimento:</strong> quando o titular concorda de forma expressa e livre com o uso de seus dados.</li>
+        <li><strong>Execução de Contrato:</strong> quando o tratamento é necessário para fornecer os serviços solicitados, cumprir obrigações contratuais ou de procedimentos preliminares relacionados ao contrato do qual seja parte o titular.</li>
+        <li><strong>Cumprimento de Obrigação Legal:</strong> para o atendimento de exigências estabelecidas pela legislação aplicável ou pelos órgãos reguladores.</li>
+        <li><strong>Proteção do Crédito:</strong> quando necessário para resguardar direitos, prevenir fraudes e garantir a segurança das operações.</li>
+        <li><strong>Legítimo Interesse:</strong> quando necessário para atender aos interesses legítimos do controlador ou de terceiros, desde que não violem os direitos e liberdades fundamentais do titular dos dados.</li>
+    </ul>
 
-        <h2>5. Finalidades de Uso dos Dados</h2>
-        <p>Usamos seus dados pessoais para:</p>
-        <ul>
-            <li>Processar e responder suas mensagens através do WhatsApp</li>
-            <li>Fornecer atendimento ao cliente e suporte</li>
-            <li>Verificar e autenticar sua identidade</li>
-            <li>Manter registros de transações e comunicações</li>
-            <li>Personalizar sua experiência com o serviço</li>
-            <li>Melhorar a qualidade e funcionalidade da plataforma</li>
-            <li>Detectar e prevenir atividades fraudulentas ou ilícitas</li>
-            <li>Cumprir com obrigações legais e regulatórias</li>
-            <li>Análise de dados para fins de pesquisa e desenvolvimento</li>
-        </ul>
+    <h2>Finalidades de Uso dos Dados</h2>
+    <p>Utilizamos seus dados pessoais para os seguintes propósitos:</p>
+    <ul>
+        <li><strong>Processamento de mensagens:</strong> responder às suas interações realizadas via WhatsApp Business.</li>
+        <li><strong>Atendimento ao cliente e suporte:</strong> oferecer assistência adequada e solucionar dúvidas.</li>
+        <li><strong>Verificação e autenticação:</strong> confirmar sua identidade para garantir segurança no acesso.</li>
+        <li><strong>Registro de transações e comunicações:</strong> manter histórico para fins administrativos e legais.</li>
+        <li><strong>Personalização da experiência:</strong> adaptar o serviço às suas preferências e necessidades.</li>
+        <li><strong>Melhoria contínua:</strong> aprimorar a qualidade e funcionalidade da plataforma.</li>
+        <li><strong>Prevenção de fraudes e ilícitos:</strong> detectar e impedir atividades suspeitas ou ilegais.</li>
+        <li><strong>Cumprimento de obrigações legais:</strong> atender requisitos regulatórios e normativos aplicáveis.</li>
+        <li><strong>Análise de dados:</strong> realizar estudos para pesquisa, inovação e desenvolvimento de novos serviços.</li>
+    </ul>
 
-        <h2>6. Compartilhamento de Dados</h2>
-        <p>Seus dados pessoais podem ser compartilhados com:</p>
-        <ul>
-            <li><strong>Meta/WhatsApp:</strong> Para processamento através da WhatsApp Business API</li>
-            <li><strong>Autoridades Legais:</strong> Quando exigido por lei ou ordem judicial</li>
-            <li><strong>Parceiros de Serviço:</strong> Provedores de infraestrutura e armazenamento de dados</li>
-            <li><strong>Proteção de Direitos:</strong> Quando necessário para proteger direitos, privacidade ou segurança</li>
-        </ul>
-        <p><strong>IMPORTANTE:</strong> Seus dados nunca são vendidos, alugados ou comercializados com fins de marketing direto sem seu consentimento explícito.</p>
+    <h2>Compartilhamento de Dados</h2>
+    <p>Os dados pessoais podem ser compartilhados com:</p>
+    <ul>
+        <li><strong>Meta/WhatsApp:</strong> para processamento das mensagens por meio da WhatsApp Business API.</li>
+        <li><strong>Autoridades Legais:</strong> quando exigido por lei, regulamento ou ordem judicial.</li>
+        <li><strong>Parceiros de Serviço:</strong> provedores de infraestrutura tecnológica, hospedagem e armazenamento de dados.</li>
+        <li><strong>Proteção de Direitos:</strong> quando necessário para resguardar direitos, privacidade ou segurança dos usuários e da plataforma.</li>
+    </ul>
+    <p><strong>Importante:</strong> os dados pessoais nunca são vendidos, alugados ou comercializados para fins de marketing direto sem o seu consentimento explícito.</p>
 
-        <h2>7. Segurança de Dados</h2>
-        <p>Implementamos medidas técnicas e organizacionais robustas para proteger seus dados:</p>
-        <ul>
-            <li>Criptografia em trânsito (HTTPS/TLS)</li>
-            <li>Criptografia de dados em repouso</li>
-            <li>Controle de acesso baseado em funções</li>
-            <li>Autenticação multifator para suas contas</li>
-            <li>Firewalls e sistemas de detecção de intrusão</li>
-            <li>Auditorias de segurança regulares</li>
-            <li>Backup regular de dados</li>
-            <li>Plano de resposta a incidentes</li>
-        </ul>
-        <p>Porém, transmissão de dados pela internet nunca é 100% segura. Faremos nosso melhor para proteger seus dados, mas não podemos garantir segurança absoluta.</p>
+    <h2>Segurança de Dados</h2>
+    <p>Implementamos medidas técnicas e organizacionais robustas para proteger seus dados pessoais, incluindo:</p>
+    <ul>
+        <li>Criptografia em trânsito (HTTPS/TLS) para proteger informações durante a transmissão;</li>
+        <li>Criptografia de dados em repouso para garantir segurança no armazenamento;</li>
+        <li>Controle de acesso baseado em funções limitando permissões conforme responsabilidades;</li>
+        <li>Autenticação multifator para maior proteção das contas;</li>
+        <li>Firewalls e sistemas de detecção de intrusão para prevenir acessos não autorizados;</li>
+        <li>Auditorias de segurança regulares para identificar e corrigir vulnerabilidades;</li>
+        <li>Backup regular de dados para assegurar a disponibilidade das informações;</li>
+        <li>Plano de resposta a incidentes para agir rapidamente em caso de falhas ou ataques.</li>
+    </ul>
+    <p>Apesar dessas medidas, é importante destacar que a transmissão de dados pela internet nunca é 100% segura. Faremos o nosso melhor para proteger suas informações, mas não podemos garantir segurança absoluta.</p>
 
-        <h2>8. Retenção de Dados</h2>
-        <p>Mantemos seus dados pessoais apenas pelo tempo necesário para:</p>
-        <ul>
-            <li>Fornecer os serviços solicitados</li>
-            <li>Cumprir obrigações legais (conforme requisitos fiscais e regulatórios)</li>
-            <li>Resolver disputas</li>
-            <li>Executar acordos celebrados</li>
-        </ul>
-        <p><strong>Períodos de Retenção:</strong></p>
-        <ul>
-            <li>Dados de contato: Enquanto a relação persistir + 3 anos após término</li>
-            <li>Histórico de mensagens: 2 anos ou conforme requisição legal</li>
-            <li>Dados transacionais: 5 anos (conforme requisitos fiscais)</li>
-        </ul>
-        <p>Após esses períodos, os dados serão anonimizados ou destruídos com segurança.</p>
+    <h2>Retenção de Dados</h2>
+    <p>Os dados pessoais serão armazenados estritamente pelo período necessário para o cumprimento das finalidades para as quais foram coletados, observando-se os seguintes critérios:</p>
+    <ul>
+        <li><strong>Prestação de Serviços:</strong> manutenção dos dados necessária para garantir a continuidade, a segurança e a qualidade do atendimento solicitado pelo Titular.</li>
+        <li><strong>Obrigações Legais:</strong> retenção para o atendimento de requisitos fiscais e regulatórios aplicáveis.</li>
+        <li><strong>Exercício Regular de Direitos:</strong> assegurando direitos e obrigações das partes envolvidas.</li>
+        <li><strong>Execução de Acordos:</strong> indispensável ao cumprimento de compromissos contratuais e instrumentos celebrados.</li>
+    </ul>
+    <p>Exaurida a finalidade ou encerrado o prazo legal, os dados são eliminados ou anonimizados, no âmbito e nos limites técnicos das atividades, ressalvadas as hipóteses de conservações autorizadas na legislação aplicável.</p>
 
-        <h2>9. Seus Direitos sob a LGPD</h2>
-        <p>Conforme a Lei Geral de Proteção de Dados, você possui os seguintes direitos:</p>
-        <ul>
-            <li><strong>Direito de Acesso:</strong> Obter informações sobre quais dados seus possuímos</li>
-            <li><strong>Direito de Retificação:</strong> Corrigir dados imprecisos ou incompletos</li>
-            <li><strong>Direito à Exclusão:</strong> Solicitar a exclusão de seus dados (direito ao esquecimento)</li>
-            <li><strong>Direito de Limitação:</strong> Solicitar que seu processamento seja limitado</li>
-            <li><strong>Direito à Portabilidade:</strong> Obter uma cópia estruturada dos seus dados</li>
-            <li><strong>Direito de Oposição:</strong> Objeções quanto ao processamento de dados</li>
-            <li><strong>Direito de Revogação de Consentimento:</strong> Revogar consentimento fornecido a qualquer momento</li>
-        </ul>
+    <h2>Direitos dos Titulares de Dados</h2>
+    <p>Conforme a Lei Geral de Proteção de Dados, o Usuário possui os seguintes direitos:</p>
+    <ul>
+        <li><strong>Direito de Acesso:</strong> obter informações sobre quais dados seus estão sendo tratados.</li>
+        <li><strong>Direito de Retificação:</strong> solicitar a correção de dados imprecisos, incompletos ou desatualizados.</li>
+        <li><strong>Direito à Exclusão:</strong> requerer a exclusão de seus dados pessoais, quando aplicável.</li>
+        <li><strong>Direito de Limitação:</strong> solicitar a restrição do tratamento de seus dados em determinadas circunstâncias.</li>
+        <li><strong>Direito à Portabilidade:</strong> obter uma cópia estruturada de seus dados para transferi-los a outro fornecedor de serviços.</li>
+        <li><strong>Direito de Oposição:</strong> apresentar objeções quanto ao tratamento de seus dados pessoais.</li>
+        <li><strong>Direito de Revogação de Consentimento:</strong> retirar, a qualquer momento, o consentimento previamente fornecido.</li>
+    </ul>
 
-        <h2>10. Como Exercer Seus Direitos</h2>
-        <p>Para exercer qualquer de seus direitos, entre em contato conosco:</p>
-        <ul>
-            <li><strong>Email:</strong> suporte@broker.amber.com.br</li>
-            <li><strong>WhatsApp Business:</strong> Acesse a plataforma e selecione "Dados Pessoais"</li>
-            <li><strong>Requisição Formal:</strong> Envie documento assinado solicitando seus direitos</li>
-        </ul>
-        <p>Responderemos em até 15 dias úteis conforme requisito da LGPD.</p>
+    <h2>Exercer os Direitos</h2>
+    <p>Para exercer qualquer de seus direitos, o Usuário deve entrar em contato:</p>
+    <ul>
+        <li><strong>Canal Digital:</strong> Através da plataforma de atendimento via WhatsApp Business, selecionando a opção dedicada à "Privacidade e Dados Pessoais".</li>
+        <li><strong>Solicitação Formal:</strong> Mediante envio de requerimento por escrito ao nosso canal oficial de comunicação, devidamente assinado e acompanhado de comprovação de identidade, para fins de segurança e prevenção a fraudes.</li>
+    </ul>
+    <p>As solicitações serão analisadas e respondidas em até 15 dias, contado da data do requerimento do titular, conforme estabelecido pelo artigo 19, II da LGPD.</p>
 
-        <h2>11. Transferência de Dados Internacionais</h2>
-        <p>Seus dados podem ser transferidos para servidores fora do Brasil para:</p>
-        <ul>
-            <li>Processamento pela Meta/WhatsApp (servidores internacionais)</li>
-            <li>Backup e armazenamento redundante</li>
-        </ul>
-        <p>Essas transferências ocorrem sob proteções legítimas e de conformidade com a LGPD.</p>
+    <h2>Transferência Internacional de Dados</h2>
+    <p>Os dados pessoais podem ser transferidos para servidores localizados fora do Brasil para as seguintes finalidades:</p>
+    <ul>
+        <li><strong>Processamento pela Meta/WhatsApp:</strong> utilização da WhatsApp Business API em servidores internacionais.</li>
+        <li><strong>Backup e armazenamento redundante:</strong> garantir disponibilidade e segurança das informações.</li>
+    </ul>
+    <p>Essas transferências são realizadas sob garantias adequadas de proteção e em conformidade com a Lei Geral de Proteção de Dados (LGPD), assegurando que seus direitos e a segurança das informações sejam preservados.</p>
 
-        <h2>12. Cookies e Rastreamento</h2>
-        <p>Através da plataforma, podemos coletar:</p>
-        <ul>
-            <li>Cookies para manter sua sessão autenticada</li>
-            <li>Identificadores de dispositivo</li>
-            <li>Logs de acesso e navegação</li>
-        </ul>
-        <p>Esses dados são usados apenas para operação da plataforma e não para rastreamento externo.</p>
+    <h2>Cookies e Rastreamento</h2>
+    <p>Para assegurar a estabilidade e a segurança da interação via plataforma, coletamos exclusivamente os seguintes metadados técnicos:</p>
+    <ul>
+        <li>Cookies estritamente necessários: utilizados para manter sua sessão autenticada, impedindo acessos não autorizados.</li>
+        <li>Identificadores de dispositivo: para otimização da interface e garantia de compatibilidade técnica.</li>
+        <li>Logs de acesso e navegação</li>
+    </ul>
+    <p>Tais informações possuem finalidade meramente operacional, sendo vedada a utilização para fins de rastreamento externo.</p>
 
-        <h2>13. Contato do Encarregado de Dados (DPO)</h2>
-        <p>A Broker designou um Encarregado de Dados Pessoais (Data Protection Officer):</p>
-        <ul>
-            <li><strong>Email DPO:</strong> dpo@broker.amber.com.br</li>
-            <li>Disponível para dúvidas sobre conformidade com LGPD</li>
-        </ul>
+    <h2>Compromisso com a Proteção de Dados</h2>
+    <p>A Amber compromete-se com o estrito cumprimento da Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018), adotando medidas técnicas e administrativas aptas a proteger os dados pessoais de acessos não autorizados e de situações acidentais ou ilícitas de destruição, perda, alteração, comunicação ou difusão. Adicionalmente, estabelecemos obrigações contratuais rígidas com parceiros e suboperadores, assegurando que estes mantenham padrões de segurança e sigilo equivalentes aos nossos.</p>
 
-        <h2>14. Mudanças a Esta Política</h2>
-        <p>Podemos atualizar esta política periodicamente. Notificaremos sobre mudanças significativas através de:</p>
-        <ul>
-            <li>Publicação de aviso nesta página</li>
-            <li>Mensagem via WhatsApp sobre mudanças material</li>
-        </ul>
-        <p>Seu uso contínuo do serviço após as mudanças implica aceitação da política atualizada.</p>
+    <h2>Política de Atualizações</h2>
+    <p>Esta política de privacidade foi produzida e atualizada pela última vez em 02/06/2026. Podemos atualizar esta política periodicamente, para assegurar que esteja livre de erros e pela busca cada vez maior de oferecer mais transparência aos Usuários. Por isso, é recomendável que os Usuários revisem com frequência esta Política.</p>
+    <p>Em caso de mudanças significativas, notificaremos você por meio de:</p>
+    <ul>
+        <li>Publicação de aviso nesta página</li>
+        <li>Mensagem via WhatsApp informando alterações relevantes</li>
+    </ul>
+    <p>O uso contínuo do serviço após tais mudanças será considerado como aceitação da política atualizada.</p>
 
-        <h2>15. Conformidade com Leis Internacionais</h2>
-        <p>Também realizamos conformidade com:</p>
-        <ul>
-            <li><strong>GDPR (UE):</strong> Se você estiver na União Europeia</li>
-            <li><strong>CCPA (Califórnia):</strong> Se você estiver na Califórnia</li>
-            <li><strong>Leis Locais:</strong> Outras jurisdições aplicáveis</li>
-        </ul>
+    <h2>Conformidade com Leis Internacionais</h2>
+    <p>Adotamos práticas de governança compatíveis com os principais frameworks globais de privacidade. Nesse sentido, observamos as diretrizes de proteção de dados pertinentes, sempre que aplicável a jurisdição específica do Titular, tais como:</p>
+    <ul>
+        <li><strong>GDPR (General Data Protection Regulation - União Europeia):</strong> Observada para interações com residentes nos Estados-Membros da União Europeia.</li>
+        <li><strong>CCPA/CPRA (California Consumer Privacy Act - EUA):</strong> Aplicável às interações que envolvam residentes do estado da Califórnia, conforme os critérios de elegibilidade previstos na referida norma.</li>
+        <li><strong>LGPD (Lei Geral de Proteção de Dados - Brasil):</strong> Aplicável a todos os tratamentos de dados realizados em território nacional ou relacionados a indivíduos localizados no Brasil.</li>
+    </ul>
 
-        <h2>16. Direito de Apelar a Autoridades</h2>
-        <p>Se você acredita que seus direitos foram violados, tem o direito de entrar em contato com a Autoridade Nacional de Proteção de Dados (ANPD):</p>
-        <ul>
-            <li><strong>Site:</strong> https://www.gov.br/cidadania/pt-br/acesso-a-informacao/lgpd</li>
-            <li><strong>Email:</strong> ouvidoria@anpd.gov.br</li>
-        </ul>
+    <h2>Direito do Titular</h2>
+    <p>Em caso de dúvidas e esclarecimentos relacionadas a esta Política ou com o tratamento, atualização e correção dos seus dados pessoais, você poderá entrar em contato com a Amber, por meio da Encarregada de Dados, no e-mail:</p>
+    <p>Caso o Titular considere que o tratamento de seus dados pessoais viola as disposições da LGPD, assiste-lhe o direito de peticionar perante a Autoridade Nacional de Proteção de Dados (ANPD), conforme previsto no Art. 18, § 1º da Lei nº 13.709/2018.</p>
+    <ul>
+        <li><strong>Site:</strong> <a href="https://www.amber.com.br" target="_blank">https://www.amber.com.br</a></li>
+        <li><strong>Email:</strong> <a href="mailto:ouvidoria@anpd.gov.br">ouvidoria@anpd.gov.br</a></li>
+    </ul>
 
-        <hr style="margin: 40px 0; border: none; border-top: 2px solid #ddd;">
-        <p style="text-align: center; color: #666; font-size: 14px;">
-            <strong>© 2026 Broker. Todos os direitos reservados.</strong><br>
-            Esta política está em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018)
-        </p>
-    </div>
 </body>
 </html>

@@ -5,6 +5,7 @@ const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
 const {
   SaveURAsSchema,
   SavePausesSchema,
+  SaveDispositionsSchema,
   CreateAgentSchema,
   UpdateAgentSchema,
   CreateSkillSchema,
@@ -48,7 +49,7 @@ class AdminController {
             name: true
           }
         }),
-        prisma.configuration.findUnique({
+        prisma.configuration.findFirst({
           where: { tenantId },
           select: { phoneNumberId: true }
         })
@@ -135,7 +136,7 @@ class AdminController {
         });
       }
 
-      const { uras, active } = validation.data;
+      const { uras, active, timeRouting } = validation.data;
 
       // Verify tenant exists
       const tenant = await prisma.tenant.findUnique({
@@ -150,7 +151,7 @@ class AdminController {
       // Update flows
       await prisma.tenant.update({
         where: { id: tenantId },
-        data: { flows: { uras, active } }
+        data: { flows: { uras, active, timeRouting } }
       });
 
       // Auditoria
@@ -195,7 +196,24 @@ class AdminController {
         userId: req.user.userId
       });
 
-      res.json(tenant.pauseReasons || { reasons: ['Almoço', 'Reunião', 'Banheiro'] });
+      let reasons = [];
+      if (tenant.pauseReasons) {
+        if (Array.isArray(tenant.pauseReasons)) {
+          reasons = tenant.pauseReasons;
+        } else if (tenant.pauseReasons.reasons && Array.isArray(tenant.pauseReasons.reasons)) {
+          reasons = tenant.pauseReasons.reasons;
+        }
+      } else {
+        reasons = [
+          { label: 'Almoço', maxMinutes: 60 },
+          { label: 'Pausa Curta', maxMinutes: 15 },
+          { label: 'Reunião', maxMinutes: 30 },
+          { label: 'Treinamento', maxMinutes: 60 },
+          { label: 'Outros', maxMinutes: 0 }
+        ];
+      }
+
+      res.json({ reasons });
     } catch (error) {
       logger.error('[Admin] getPauses error:', {
         error: error.message,
@@ -219,7 +237,7 @@ class AdminController {
         });
       }
 
-      const { reasons } = validation.data;
+      const { list } = validation.data;
 
       // Verify tenant exists
       const tenant = await prisma.tenant.findUnique({
@@ -234,7 +252,7 @@ class AdminController {
       // Update pause reasons (store directly as array, not nested)
       await prisma.tenant.update({
         where: { id: tenantId },
-        data: { pauseReasons: reasons }
+        data: { pauseReasons: list }
       });
 
       // Auditoria
@@ -247,7 +265,7 @@ class AdminController {
       logger.info('[Admin] Pause reasons saved', {
         tenantId,
         userId: req.user.userId,
-        count: reasons.length
+        count: list.length
       });
 
       res.json({ success: true, message: 'Pause reasons saved successfully' });
@@ -258,6 +276,108 @@ class AdminController {
         userId: req.user.userId
       });
       res.status(500).json({ error: 'Failed to save pause reasons' });
+    }
+  }
+
+  static async getDispositions(req, res) {
+    try {
+      const { tenantId } = req.user;
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { closeDispositions: true }
+      });
+
+      if (!tenant) {
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      logger.debug('[Admin] Close dispositions accessed', {
+        tenantId,
+        userId: req.user.userId
+      });
+
+      let dispositions = [];
+      if (tenant.closeDispositions) {
+        if (Array.isArray(tenant.closeDispositions)) {
+          dispositions = tenant.closeDispositions;
+        } else if (tenant.closeDispositions.dispositions && Array.isArray(tenant.closeDispositions.dispositions)) {
+          dispositions = tenant.closeDispositions.dispositions;
+        }
+      } else {
+        dispositions = [
+          { label: 'Dúvida Sanada' },
+          { label: 'Venda Realizada' },
+          { label: 'Problema Técnico' },
+          { label: 'Não Respondeu' },
+          { label: 'Indesejado' },
+          { label: 'Outros' }
+        ];
+      }
+
+      res.json({ dispositions });
+    } catch (error) {
+      logger.error('[Admin] getDispositions error:', {
+        error: error.message,
+        tenantId: req.user.tenantId,
+        userId: req.user.userId
+      });
+      res.status(500).json({ error: 'Failed to fetch close dispositions' });
+    }
+  }
+
+  static async saveDispositions(req, res) {
+    try {
+      const { tenantId } = req.user;
+
+      // Validate with Zod schema
+      const validation = SaveDispositionsSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: validation.error.flatten().fieldErrors
+        });
+      }
+
+      const { list } = validation.data;
+
+      // Verify tenant exists
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true }
+      });
+
+      if (!tenant) {
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      // Update close dispositions
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { closeDispositions: list }
+      });
+
+      // Auditoria
+      await logAuditEvent(AuditAction.TENANT_UPDATED, {
+        tenantId,
+        changes: ['closeDispositions'],
+        updatedBy: req.user.userId
+      });
+
+      logger.info('[Admin] Close dispositions saved', {
+        tenantId,
+        userId: req.user.userId,
+        count: list.length
+      });
+
+      res.json({ success: true, message: 'Close dispositions saved successfully' });
+    } catch (error) {
+      logger.error('[Admin] saveDispositions error:', {
+        error: error.message,
+        tenantId: req.user.tenantId,
+        userId: req.user.userId
+      });
+      res.status(500).json({ error: 'Failed to save close dispositions' });
     }
   }
 
@@ -278,6 +398,8 @@ class AdminController {
           role: true,
           workStatus: true,
           active: true,
+          maxActiveChats: true,
+          maxReceivedChats: true,
           skills: { include: { skill: true } }
         }
       });
@@ -296,6 +418,8 @@ class AdminController {
         role: a.role,
         workStatus: a.workStatus,
         active: a.active,
+        maxActiveChats: a.maxActiveChats,
+        maxReceivedChats: a.maxReceivedChats,
         skills: a.skills.map((us) => us.skill.name)
       }));
 
@@ -323,7 +447,7 @@ class AdminController {
         });
       }
 
-      const { name, email, password, role, skills } = validation.data;
+      const { name, email, password, role, skills, maxActiveChats, maxReceivedChats } = validation.data;
 
       // Check email uniqueness within tenant
       const existingAgent = await prisma.user.findFirst({
@@ -352,7 +476,9 @@ class AdminController {
             email,
             password: hashedPassword,
             role: role || 'AGENT',
-            workStatus: 'AVAILABLE',
+            workStatus: 'ONLINE',
+            maxActiveChats: maxActiveChats !== undefined ? maxActiveChats : 5,
+            maxReceivedChats: maxReceivedChats !== undefined ? maxReceivedChats : 5,
             // Assign skills if provided
             skills: skills && skills.length > 0
               ? {
@@ -412,7 +538,7 @@ class AdminController {
         });
       }
 
-      const { name, email, role, skills, password, active } = validation.data;
+      const { name, email, role, skills, password, active, maxActiveChats, maxReceivedChats } = validation.data;
 
       // Verify agent exists and belongs to this tenant
       const existingAgent = await prisma.user.findUnique({
@@ -451,11 +577,13 @@ class AdminController {
 
       // Prepare update data (only include provided fields)
       const updateData = {};
-      if (name !== undefined) updateData.name = name;
-      if (email !== undefined) updateData.email = email;
-      if (role !== undefined) updateData.role = role;
-      if (active !== undefined) updateData.active = active;
-      if (hashedPassword) updateData.password = hashedPassword;
+      if (name !== undefined) {updateData.name = name;}
+      if (email !== undefined) {updateData.email = email;}
+      if (role !== undefined) {updateData.role = role;}
+      if (active !== undefined) {updateData.active = active;}
+      if (maxActiveChats !== undefined) {updateData.maxActiveChats = maxActiveChats;}
+      if (maxReceivedChats !== undefined) {updateData.maxReceivedChats = maxReceivedChats;}
+      if (hashedPassword) {updateData.password = hashedPassword;}
 
       // Transaction: Update User + Skills
       const updatedUser = await prisma.$transaction(async (tx) => {
@@ -720,7 +848,18 @@ class AdminController {
           id: true,
           name: true,
           maxConcurrentAgents: true,
-          defaultAgentLanguage: true
+          defaultAgentLanguage: true,
+          inboundTimeoutMinutes: true,
+          surveyEnabled: true,
+          surveyFlowId: true,
+          queueAlertConfig: true,
+          closeWebhookConfig: true,
+          featureBotBuilder: true,
+          featureSurvey: true,
+          featureApiAccess: true,
+          featureAiSummary: true,
+          featureQueueAlert: true,
+          featureCloseWebhook: true
         }
       });
 
@@ -757,12 +896,17 @@ class AdminController {
         });
       }
 
-      const { maxConcurrentAgents, defaultAgentLanguage } = validation.data;
+      const { maxConcurrentAgents, defaultAgentLanguage, inboundTimeoutMinutes, surveyEnabled, surveyFlowId, queueAlertConfig, closeWebhookConfig } = validation.data;
 
+      // Verify tenant exists
       // Verify tenant exists
       const tenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { id: true }
+        select: { 
+          id: true,
+          featureQueueAlert: true,
+          featureCloseWebhook: true
+        }
       });
 
       if (!tenant) {
@@ -771,8 +915,27 @@ class AdminController {
 
       // Prepare update data (only include provided fields)
       const updateData = {};
-      if (maxConcurrentAgents !== undefined) updateData.maxConcurrentAgents = maxConcurrentAgents;
-      if (defaultAgentLanguage !== undefined) updateData.defaultAgentLanguage = defaultAgentLanguage;
+      if (maxConcurrentAgents !== undefined) {updateData.maxConcurrentAgents = maxConcurrentAgents;}
+      if (defaultAgentLanguage !== undefined) {updateData.defaultAgentLanguage = defaultAgentLanguage;}
+      if (inboundTimeoutMinutes !== undefined) {updateData.inboundTimeoutMinutes = inboundTimeoutMinutes;}
+      if (surveyEnabled !== undefined) {updateData.surveyEnabled = surveyEnabled;}
+      if (surveyFlowId !== undefined) {updateData.surveyFlowId = surveyFlowId;}
+      
+      if (queueAlertConfig !== undefined) {
+        // Forçar inativo se não tiver licença
+        if (!tenant.featureQueueAlert && queueAlertConfig.enabled) {
+          queueAlertConfig.enabled = false;
+        }
+        updateData.queueAlertConfig = queueAlertConfig;
+      }
+      
+      if (closeWebhookConfig !== undefined) {
+        // Forçar inativo se não tiver licença
+        if (!tenant.featureCloseWebhook && closeWebhookConfig.enabled) {
+          closeWebhookConfig.enabled = false;
+        }
+        updateData.closeWebhookConfig = closeWebhookConfig;
+      }
 
       // If no fields to update, return current settings
       if (Object.keys(updateData).length === 0) {
@@ -782,7 +945,12 @@ class AdminController {
             id: true,
             name: true,
             maxConcurrentAgents: true,
-            defaultAgentLanguage: true
+            defaultAgentLanguage: true,
+            inboundTimeoutMinutes: true,
+            surveyEnabled: true,
+            surveyFlowId: true,
+            queueAlertConfig: true,
+            closeWebhookConfig: true
           }
         });
         return res.json({ message: 'No changes to apply', settings: currentSettings });
@@ -795,7 +963,12 @@ class AdminController {
           id: true,
           name: true,
           maxConcurrentAgents: true,
-          defaultAgentLanguage: true
+          defaultAgentLanguage: true,
+          inboundTimeoutMinutes: true,
+          surveyEnabled: true,
+          surveyFlowId: true,
+          queueAlertConfig: true,
+          closeWebhookConfig: true
         }
       });
 

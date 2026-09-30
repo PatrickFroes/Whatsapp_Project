@@ -4,6 +4,32 @@ const whatsappService = require('./whatsapp');
 const BusinessHoursService = require('./BusinessHoursService');
 const SafeEvaluator = require('./SafeEvaluator');
 
+function getDeptFromFlowState(flowState) {
+  if (!flowState) return null;
+  let obj = flowState;
+  if (typeof obj === 'string') {
+    try {
+      obj = JSON.parse(obj);
+    } catch (e) {
+      return null;
+    }
+  }
+  return (obj && typeof obj === 'object' && obj.dept) ? obj.dept : null;
+}
+
+function getParsedFlowState(flowState) {
+  if (!flowState) return {};
+  if (typeof flowState === 'object') return flowState;
+  if (typeof flowState === 'string') {
+    try {
+      return JSON.parse(flowState);
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
+
 // Constants
 const MAX_FLOW_STEPS = 15;
 const MAX_BUTTON_OPTIONS = 3;
@@ -73,24 +99,15 @@ class FlowEngine {
         }
       }
 
-      // 3. Carregar configuração do flow
-      const flows = tenant.flows || {};
-      const activeFlowId = flows.active || 'Padrão';
-      const flow = flows.uras?.[activeFlowId];
-
-      if (!flow || !flow.start) {
-        logger.error('[FlowEngine] Flow não configurado ou inválido');
-        await FlowEngine.sendMessage(
-          conversation,
-          'Olá! Um momento por favor, estou conectando você com um atendente.',
-          tenant
-        );
-        await FlowEngine.transferToQueue(tenant, conversation, null);
-        return;
-      }
-
       // 4. Carregar/inicializar estado com validação robusta
       let state = conversation.flowState;
+      if (typeof state === 'string') {
+        try {
+          state = JSON.parse(state);
+        } catch (e) {
+          state = null;
+        }
+      }
 
       if (!state || typeof state !== 'object') {
         logger.warn('[FlowEngine] Invalid flowState detected, reinitializing');
@@ -109,6 +126,29 @@ class FlowEngine {
         if (!state.history || !Array.isArray(state.history)) {
           state.history = [];
         }
+      }
+
+      // 3. Carregar configuração do flow (ou do survey se estiver em modo pesquisa)
+      const flows = tenant.flows || {};
+      let activeFlowId = state.currentFlowId;
+      if (!activeFlowId) {
+        activeFlowId = FlowEngine.resolveTimeRoutingFlow(flows);
+        state.currentFlowId = activeFlowId;
+      }
+      if (state.isSurvey && state.surveyFlowId) {
+        activeFlowId = state.surveyFlowId;
+      }
+      const flow = flows.uras?.[activeFlowId];
+
+      if (!flow || !flow.start) {
+        logger.error('[FlowEngine] Flow não configurado ou inválido');
+        await FlowEngine.sendMessage(
+          conversation,
+          'Olá! Um momento por favor, estou conectando você com um atendente.',
+          tenant
+        );
+        await FlowEngine.transferToQueue(tenant, conversation, null);
+        return;
       }
 
       // 5. Carregar dados do contato para interpolação - WITH TENANT SECURITY
@@ -134,8 +174,68 @@ class FlowEngine {
       if (!state.data) {
         state.data = {};
       }
+      // Legados
       state.data.name = contact?.name || contact?.phone || 'Cliente';
       state.data.phone = contact?.phone;
+      state.data.number = contact?.phone || '';
+      state.data.username = contact?.name || '';
+
+      // Variáveis Reservadas do Sistema (Carregamento Dinâmico em Tempo Real)
+      const now = new Date();
+      state.data['sys.date'] = now.toLocaleDateString('pt-BR');
+      state.data['sys.time'] = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      state.data['sys.year'] = String(now.getFullYear());
+      state.data['sys.conversation_id'] = conversation.id;
+      state.data['sys.initiation_type'] = conversation.initiationType || 'INBOUND';
+      state.data['sys.tenant_name'] = tenant.name || '';
+      state.data['sys.tenant_id'] = tenant.id;
+      state.data['sys.number'] = contact?.phone || '';
+      state.data['sys.username'] = contact?.name || '';
+
+      // Consultas de infraestrutura em tempo real
+      const [agentsOnline, totalQueue] = await Promise.all([
+        prisma.user.count({
+          where: { tenantId: tenant.id, role: 'AGENT', workStatus: 'ONLINE', active: true }
+        }),
+        prisma.conversation.count({
+          where: { tenantId: tenant.id, status: 'QUEUED' }
+        })
+      ]);
+
+      state.data['system.agents_online'] = agentsOnline;
+      state.data['system.queue_size'] = totalQueue;
+
+      // Estatísticas específicas por Skill/Departamento da conversa atual
+      let deptAgentsOnline = 0;
+      let deptQueueSize = 0;
+
+      if (conversation.dept) {
+        const [dAgents, dQueue] = await Promise.all([
+          prisma.user.count({
+            where: {
+              tenantId: tenant.id,
+              role: 'AGENT',
+              workStatus: 'ONLINE',
+              active: true,
+              skills: {
+                some: {
+                  skill: {
+                    name: conversation.dept
+                  }
+                }
+              }
+            }
+          }),
+          prisma.conversation.count({
+            where: { tenantId: tenant.id, status: 'QUEUED', dept: conversation.dept }
+          })
+        ]);
+        deptAgentsOnline = dAgents;
+        deptQueueSize = dQueue;
+      }
+
+      state.data['system.dept_agents_online'] = deptAgentsOnline;
+      state.data['system.dept_queue_size'] = deptQueueSize;
 
       // 6. Primeira interação: executar nó inicial
       if (!state.waitingFor) {
@@ -196,10 +296,8 @@ class FlowEngine {
     // Coleta de dados
     if (waitingType === 'collect_data') {
       const dataKey = state.collectingKey;
+      const dataType = state.collectingType || 'string';
       if (dataKey) {
-        state.data[dataKey] = input;
-        logger.debug(`[FlowEngine] Coletado ${dataKey}: ${input}`);
-
         // Validação se configurada
         if (state.validationPattern) {
           const regex = new RegExp(state.validationPattern);
@@ -212,16 +310,25 @@ class FlowEngine {
             return; // Mantém no mesmo estado
           }
         }
+
+        const castedValue = FlowEngine.castValue(input, dataType);
+        state.data[dataKey] = castedValue;
+        logger.debug(`[FlowEngine] Coletado ${dataKey} (${dataType}): ${JSON.stringify(castedValue)}`);
       }
 
       state.waitingFor = null;
       state.collectingKey = null;
+      state.collectingType = null;
 
       // Avançar para próximo nó
       const currentNode = flow[state.nodeId];
       if (currentNode?.next) {
         state.nodeId = currentNode.next;
         await FlowEngine.executeNode(tenant, conversation, flow, state, message);
+      } else {
+        if (state.isSurvey) {
+          await FlowEngine.finishSurvey(tenant, conversation, state);
+        }
       }
       return;
     }
@@ -303,6 +410,12 @@ class FlowEngine {
       }
     }
 
+    // Verificações de conclusão da pesquisa (Survey)
+    if (state.isSurvey && (state.finished || !nodeId || !flow[nodeId])) {
+      await FlowEngine.finishSurvey(tenant, conversation, state);
+      return;
+    }
+
     // Salvar estado
     await FlowEngine.saveState(conversation, state);
 
@@ -346,19 +459,78 @@ class FlowEngine {
       case 'set_data':
         return await FlowEngine.handleSetDataNode(state, node);
 
+      case 'math_operation':
+        return await FlowEngine.handleMathOperationNode(state, node);
+
+      case 'switch_flow':
+        return await FlowEngine.handleSwitchFlowNode(tenant, conversation, state, node);
+
       case 'end':
-        await FlowEngine.sendMessage(
-          conversation,
-          FlowEngine.interpolate(node.message || 'Obrigado!', state),
-          tenant
-        );
-        await FlowEngine.closeConversation(conversation);
+        if (node.message && node.message.trim().length > 0) {
+          await FlowEngine.sendMessage(
+            conversation,
+            FlowEngine.interpolate(node.message, state),
+            tenant
+          );
+        }
+        if (state.isSurvey) {
+          state.finished = true;
+        } else {
+          await FlowEngine.closeConversation(conversation);
+        }
         return false;
 
       default:
         logger.warn(`[FlowEngine] Tipo de nó desconhecido: ${type}`);
         return true; // Continuar para próximo
     }
+  }
+
+  /**
+   * Nó de desvio de fluxo (muda a URA ativa do cliente)
+   */
+  static async handleSwitchFlowNode(tenant, conversation, state, node) {
+    const targetFlowId = node.target_flow_id;
+    if (!targetFlowId) {
+      logger.warn(`[FlowEngine] switch_flow executado sem target_flow_id na conversa ${conversation.id}`);
+      return true; // Continua para o next se houver, ou encerra
+    }
+
+    const flows = tenant.flows || {};
+    const targetFlow = flows.uras?.[targetFlowId];
+    if (!targetFlow) {
+      logger.error(`[FlowEngine] switch_flow executado para fluxo inexistente "${targetFlowId}" na conversa ${conversation.id}`);
+      return true;
+    }
+
+    logger.info(`[FlowEngine] Redirecionando conversa ${conversation.id} para o fluxo "${targetFlowId}"`);
+    
+    // Altera o fluxo ativo e reseta o nó para start
+    state.currentFlowId = targetFlowId;
+    state.nodeId = 'start';
+    state.step = 0;
+    
+    // IMPORTANTE: Como mudamos o fluxo em memória, precisamos atualizar a referência do nó 'start'
+    // Mas o loop superior de processamento vai continuar rodando e no próximo ciclo ele lê node = flow[nodeId].
+    // Para que o loop superior veja o novo fluxo instantaneamente nesta mesma transação,
+    // nós alteramos diretamente o nodeId do estado. O loop do process() vai avançar para node.next,
+    // mas se o tipo for 'switch_flow', nós não temos node.next direto que faça sentido no novo fluxo.
+    // Portanto, forçamos o loop a ler o novo fluxo. Para isso, o handleSwitchFlowNode retorna true,
+    // mas antes nós alteramos o nodeId no estado. 
+    // Vamos garantir que no loop do process() o fluxo seja carregado dinamicamente caso mude!
+    // Para simplificar e evitar loops infinitos na mesma execução, vamos retornar FALSE e salvar o estado.
+    // Assim, na próxima mensagem do cliente (ou se executarmos de forma assíncrona), ele roda no novo fluxo.
+    // Mas pera! Se a URA for silenciosa (nós de ação seguidos de texto), queremos que rode imediatamente!
+    // O melhor é retornar FALSE e disparar o executeNode imediatamente para o novo fluxo!
+    
+    // Vamos disparar a execução imediata em background para não travar:
+    setTimeout(() => {
+      FlowEngine.executeNode(tenant, conversation, targetFlow, state, { content: '' }).catch(err => {
+        logger.error(`[FlowEngine] Erro ao executar nó inicial após switch_flow: ${err.message}`);
+      });
+    }, 50);
+
+    return false; // Para a execução do ciclo atual, pois o setTimeout vai assumir a execução no novo fluxo
   }
 
   /**
@@ -391,6 +563,7 @@ class FlowEngine {
     // Configurar estado de coleta
     state.waitingFor = 'collect_data';
     state.collectingKey = node.data_key || 'input';
+    state.collectingType = node.data_type || 'string';
     state.validationPattern = node.validation_pattern;
     state.validationError = node.validation_error;
 
@@ -401,7 +574,52 @@ class FlowEngine {
    * Nó condicional (if/else)
    */
   static async handleConditionalNode(tenant, conversation, flow, state, node) {
-    const condition = node.condition; // Ex: "{{status}} === 'ok'"
+    let condition = node.condition; // Fallback para legados
+
+    // Se o usuário configurou regras dinâmicas no frontend
+    if (Array.isArray(node.rules) && node.rules.length > 0) {
+      const parts = [];
+      node.rules.forEach((rule, idx) => {
+        const left = rule.left || '';
+        const op = rule.op || '==';
+        const right = rule.right || '';
+        const join = rule.join || 'and'; // 'and' ou 'or' para conectar com a anterior
+
+        // O operando esquerdo geralmente é uma variável (ex: {{system.agents_online}}).
+        // O operando direito pode ser outra variável (ex: {{cliente.limite}}) ou um valor fixo.
+        // Se o operando direito for numérico ou boleano ou já tiver chaves {{}}, colocamos puro.
+        // Se for string pura, encapsulamos em aspas simples.
+        let safeRight = right;
+        if (
+          typeof right === 'string' &&
+          !right.startsWith('{{') &&
+          isNaN(Number(right)) &&
+          right !== 'true' &&
+          right !== 'false' &&
+          !right.startsWith("'") &&
+          !right.startsWith('"')
+        ) {
+          safeRight = `'${right.replace(/'/g, "\\'")}'`;
+        }
+
+        const conditionPart = `(${left} ${op} ${safeRight})`;
+        
+        if (idx === 0) {
+          parts.push(conditionPart);
+        } else {
+          const operatorStr = join === 'or' ? '||' : '&&';
+          parts.push(` ${operatorStr} ${conditionPart}`);
+        }
+      });
+      condition = parts.join('');
+    }
+
+    if (!condition) {
+      logger.warn(`[FlowEngine] Nó condicional sem condição definida na conversa ${conversation.id}`);
+      state.nodeId = node.if_false || node.next;
+      return true;
+    }
+
     const conditionStr = FlowEngine.interpolate(condition, state);
 
     try {
@@ -417,6 +635,7 @@ class FlowEngine {
       return true; // Continuar para nó condicional
     } catch (error) {
       logger.error('[FlowEngine] Erro ao avaliar condição:', error);
+      state.nodeId = node.if_false || node.next;
       return true; // Continuar para next
     }
   }
@@ -432,6 +651,7 @@ class FlowEngine {
     await FlowEngine.sendMessage(conversation, message, tenant);
 
     const skillName = node.dept || node.skill;
+    state.dept = skillName; // Sincroniza estado em memória para evitar que saveState sobrescreva e apague a skill
     const success = await FlowEngine.assignAgent(tenant, conversation, skillName);
 
     if (!success) {
@@ -456,6 +676,7 @@ class FlowEngine {
     const message = FlowEngine.interpolate(node.message || 'Aguarde na fila, por favor.', state);
     await FlowEngine.sendMessage(conversation, message, tenant);
 
+    state.dept = node.dept; // Sincroniza estado em memória
     await FlowEngine.transferToQueue(tenant, conversation, node.dept);
     return false; // Parar flow
   }
@@ -464,31 +685,63 @@ class FlowEngine {
    * Nó de chamada API
    */
   static async handleApiCallNode(tenant, conversation, state, node) {
-    logger.debug(`[FlowEngine] Executando API Call: ${node.api_method || 'GET'} ${node.api_url}`);
+    logger.warn(`[FlowEngine] [API Call] Iniciando: ${node.api_method || 'GET'} ${node.api_url} (Conv: ${conversation.id})`);
 
     try {
       const url = FlowEngine.interpolate(node.api_url, state);
       const method = (node.api_method || 'GET').toUpperCase();
+      logger.warn(`[FlowEngine] [API Call] Executando: ${method} ${url}`);
 
-      // Interpolar headers (suporta variáveis como {{api_key}})
-      const rawHeaders = node.api_headers || {};
+      // Interpolar headers (suporta JSON string ou Objeto)
+      let rawHeaders = node.api_headers || {};
+      if (typeof rawHeaders === 'string') {
+        const interpolatedHeaders = FlowEngine.interpolate(rawHeaders, state);
+        try {
+          rawHeaders = JSON.parse(interpolatedHeaders);
+        } catch (e) {
+          try {
+            rawHeaders = JSON.parse(interpolatedHeaders.replace(/'/g, '"'));
+          } catch (e2) {
+            logger.warn('[FlowEngine] [API Call] Erro ao parsear api_headers como JSON:', e.message);
+            rawHeaders = {};
+          }
+        }
+      }
+
       const headers = {};
-      Object.entries(rawHeaders).forEach(([key, value]) => {
-        headers[key] = FlowEngine.interpolate(String(value), state);
-      });
+      if (rawHeaders && typeof rawHeaders === 'object' && !Array.isArray(rawHeaders)) {
+        Object.entries(rawHeaders).forEach(([key, value]) => {
+          const cleanKey = FlowEngine.interpolate(String(key), state).trim();
+          const cleanVal = FlowEngine.interpolate(String(value), state).trim();
+          headers[cleanKey] = cleanVal;
+        });
+      }
 
       // Interpolar body (suporta variáveis como {{nome}}, {{telefone}})
       let body = undefined;
       if (node.api_body) {
-        const bodyStr =
+        let bodyStr =
           typeof node.api_body === 'string' ? node.api_body : JSON.stringify(node.api_body);
         const interpolated = FlowEngine.interpolate(bodyStr, state);
         try {
           body = JSON.parse(interpolated);
         } catch (e) {
-          logger.error('[FlowEngine] Erro ao parsear body da API:', e.message);
-          body = interpolated;
+          // Tentar autocorreção de aspas simples para aspas duplas válidas em JSON
+          try {
+            const jsonFixed = interpolated.replace(/'/g, '"');
+            body = JSON.parse(jsonFixed);
+          } catch (e2) {
+            logger.warn('[FlowEngine] [API Call] Body enviado como texto plano:', e.message);
+            body = interpolated;
+          }
         }
+      }
+
+      if (body) {
+        logger.warn(`[FlowEngine] [API Request Body] ${typeof body === 'object' ? JSON.stringify(body) : body}`);
+      }
+      if (headers && Object.keys(headers).length > 0) {
+        logger.warn(`[FlowEngine] [API Request Headers] ${JSON.stringify(headers)}`);
       }
 
       const axios = require('axios');
@@ -501,7 +754,8 @@ class FlowEngine {
         validateStatus: (status) => status < 500 // Não lançar erro para 4xx
       });
 
-      logger.debug(`[FlowEngine] API Response: ${response.status}`);
+      const respDataSample = typeof response.data === 'object' ? JSON.stringify(response.data).substring(0, 300) : String(response.data).substring(0, 300);
+      logger.warn(`[FlowEngine] [API Response] Status: ${response.status} | Data: ${respDataSample}`);
 
       // Salvar status code
       state.data['_api_status'] = response.status;
@@ -509,12 +763,24 @@ class FlowEngine {
       // Salvar resposta em variável
       if (node.api_save_var) {
         state.data[node.api_save_var] = response.data;
+        logger.warn(`[FlowEngine] [API Save] Resposta gravada em {{${node.api_save_var}}}`);
       }
 
-      // Disponibilizar campos específicos da resposta
-      if (node.api_map_fields && typeof response.data === 'object') {
-        Object.entries(node.api_map_fields).forEach(([key, path]) => {
-          state.data[key] = FlowEngine.getNestedValue(response.data, path);
+      // Disponibilizar campos específicos da resposta (suporta JSON string ou Objeto)
+      let mapFields = node.api_map_fields;
+      if (typeof mapFields === 'string') {
+        try {
+          mapFields = JSON.parse(mapFields);
+        } catch (e) {
+          mapFields = {};
+        }
+      }
+
+      if (mapFields && typeof mapFields === 'object' && !Array.isArray(mapFields) && typeof response.data === 'object') {
+        Object.entries(mapFields).forEach(([key, path]) => {
+          const val = FlowEngine.getNestedValue(response.data, path);
+          state.data[key] = val;
+          logger.warn(`[FlowEngine] [API Map] Mapeado: {{${key}}} (path: "${path}") = ${JSON.stringify(val)}`);
         });
       }
 
@@ -532,8 +798,13 @@ class FlowEngine {
         state.nodeId = node.on_success_next;
       }
     } catch (error) {
-      logger.error('[FlowEngine] API Error:', error.message);
+      logger.error(`[FlowEngine] [API Error] Falha na chamada HTTP para ${node.api_url}: ${error.message}`);
+      if (error.response) {
+        const errDataSample = typeof error.response.data === 'object' ? JSON.stringify(error.response.data).substring(0, 300) : String(error.response.data).substring(0, 300);
+        logger.error(`[FlowEngine] [API Error Details] Status: ${error.response.status} | Body: ${errDataSample}`);
+      }
       state.data['_api_error'] = error.message;
+      state.data['_api_status'] = error.response?.status || 500;
 
       if (node.on_error_message) {
         await FlowEngine.sendMessage(
@@ -553,15 +824,103 @@ class FlowEngine {
   }
 
   /**
+   * Converte um valor bruto para o tipo especificado
+   */
+  static castValue(value, type) {
+    if (value === null || value === undefined) return value;
+    const strVal = String(value).trim();
+    
+    switch (type) {
+      case 'int':
+        const parsedInt = parseInt(strVal, 10);
+        return isNaN(parsedInt) ? strVal : parsedInt;
+      case 'float':
+        const parsedFloat = parseFloat(strVal.replace(',', '.'));
+        return isNaN(parsedFloat) ? strVal : parsedFloat;
+      case 'date':
+        const parsedDate = new Date(strVal);
+        if (isNaN(parsedDate.getTime())) {
+          // Tentar parse de formatos brasileiros comuns: DD/MM/AAAA ou DD/MM/AAAA HH:MM:SS
+          const match = strVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+          if (match) {
+            const [_, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+            const pad = (n) => n.padStart(2, '0');
+            const isoStr = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`;
+            const dateTry = new Date(isoStr);
+            if (!isNaN(dateTry.getTime())) {
+              return dateTry;
+            }
+          }
+          return strVal;
+        }
+        return parsedDate;
+      case 'boolean':
+        return strVal === 'true' || strVal === '1' || strVal === 'yes' || strVal === 'sim';
+      case 'json':
+        try {
+          return JSON.parse(strVal);
+        } catch (e) {
+          logger.warn(`[FlowEngine] Falha ao converter string para JSON: "${strVal}"`);
+          return strVal;
+        }
+      case 'string':
+      default:
+        return value;
+    }
+  }
+
+  /**
    * Nó de definição de dados
    */
   static async handleSetDataNode(state, node) {
     const key = node.data_key;
-    const value = FlowEngine.interpolate(node.data_value, state);
+    const type = node.data_type || 'string';
+    let value = FlowEngine.interpolate(node.data_value, state);
 
     if (key) {
+      value = FlowEngine.castValue(value, type);
       state.data[key] = value;
-      logger.debug(`[FlowEngine] Set ${key} = ${value}`);
+      logger.debug(`[FlowEngine] Set ${key} (${type}) = ${JSON.stringify(value)}`);
+    }
+
+    return true; // Continuar
+  }
+
+  /**
+   * Nó de operação matemática segura
+   */
+  static async handleMathOperationNode(state, node) {
+    const key = node.target_variable;
+    const expr = node.expression || '';
+    
+    if (!key) {
+      logger.warn('[FlowEngine] math_operation executado sem target_variable');
+      return true; // Continua
+    }
+
+    const interpolated = FlowEngine.interpolate(expr, state);
+    
+    // HIGIENIZAÇÃO ABSOLUTA: remove qualquer caractere que não seja número, ponto ou operadores matemáticos básicos
+    const cleanExpr = interpolated.replace(/[^0-9\+\-\*\/\%\.\(\)\s]/g, '');
+
+    if (cleanExpr.trim().length === 0) {
+      logger.warn(`[FlowEngine] Expressão matemática vazia ou inválida após higienização: "${expr}"`);
+      return true;
+    }
+
+    try {
+      // Execução segura: apenas expressões aritméticas sanitizadas
+      const calculator = new Function(`return (${cleanExpr});`);
+      const result = calculator();
+      
+      if (typeof result === 'number' && !isNaN(result)) {
+        state.data[key] = result;
+        logger.info(`[FlowEngine] Cálculo de matemática: ${key} = ${cleanExpr} => ${result}`);
+      } else {
+        logger.warn(`[FlowEngine] Resultado de cálculo matemático não numérico: ${result}`);
+      }
+    } catch (e) {
+      logger.error(`[FlowEngine] Erro ao calcular expressão matemática "${cleanExpr}": ${e.message}`);
     }
 
     return true; // Continuar
@@ -573,7 +932,14 @@ class FlowEngine {
   static async sendMenu(conversation, node, state, tenant) {
     const bodyText = FlowEngine.interpolate(node.message || '', state);
     const options = node.options || {};
-    const keys = Object.keys(options);
+    const keys = Object.keys(options).sort((a, b) => {
+      const numA = parseFloat(a);
+      const numB = parseFloat(b);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
 
     if (keys.length === 0) {
       await FlowEngine.sendMessage(conversation, bodyText, tenant);
@@ -638,7 +1004,11 @@ class FlowEngine {
       // Fallback: texto simples
       let text = bodyText + '\n\n';
       keys.forEach((opt, idx) => {
-        text += `${idx + 1}. ${opt}\n`;
+        if (/^\d+[\s.\-_]+/i.test(opt.trim())) {
+          text += `${opt.trim()}\n`;
+        } else {
+          text += `${idx + 1}. ${opt}\n`;
+        }
       });
       await FlowEngine.sendMessage(conversation, text, tenant);
     }
@@ -718,12 +1088,20 @@ class FlowEngine {
    * Transfere para fila
    */
   static async transferToQueue(tenant, conversation, skillName) {
+    const fs = getParsedFlowState(conversation.flowState);
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: {
         status: 'QUEUED',
         assignedToId: null,
-        flowState: { dept: skillName }
+        dept: skillName,
+        flowState: {
+          ...fs,
+          dept: skillName,
+          waitingForBusiness: false,
+          queuedAt: new Date().toISOString(),
+          queueAlertSent: false
+        }
       }
     });
 
@@ -774,7 +1152,13 @@ class FlowEngine {
       where: { id: conversation.id },
       data: {
         status: 'ASSIGNED',
-        assignedToId: agent.id
+        assignedToId: agent.id,
+        dept: skillName,
+        flowState: {
+          ...getParsedFlowState(conversation.flowState),
+          dept: skillName, // Salva a skill selecionada no fluxo
+          waitingForBusiness: false
+        }
       }
     });
 
@@ -812,7 +1196,7 @@ class FlowEngine {
   }
 
   /**
-   * Envia mensagem via WhatsApp
+   * Envia mensagem via canal correspondente
    */
   static async sendMessage(conversation, content, tenant) {
     try {
@@ -838,14 +1222,21 @@ class FlowEngine {
         return;
       }
 
-      logger.debug(`[FlowEngine] Enviando mensagem para ${contact.phone}`);
-
-      await whatsappService.sendMessage(contact.phone, content, tenant);
+      if (conversation.channel === 'WEBCHAT') {
+        logger.debug(`[FlowEngine] Enviando mensagem via Webchat para a conversa ${conversation.id}`);
+        const WebchatSocketService = require('./WebchatSocketService');
+        await WebchatSocketService.sendToClient(conversation.id, content);
+      } else {
+        logger.debug(`[FlowEngine] Enviando mensagem para ${contact.phone}`);
+        await whatsappService.sendMessage(contact.phone, content, tenant);
+      }
 
       // Salvar no banco
       let dbContent = content;
-      if (typeof content === 'object') {
-        if (content.type === 'interactive') {
+      if (typeof content === 'object' && content !== null) {
+        if (conversation.channel === 'WEBCHAT') {
+          dbContent = JSON.stringify(content);
+        } else if (content.type === 'interactive') {
           dbContent = `[Interactive: ${content.interactive.type}] ${content.interactive.body.text}`;
         } else {
           dbContent = JSON.stringify(content);
@@ -901,11 +1292,49 @@ class FlowEngine {
 
     let result = text;
 
-    // Substituir {{variavel}}
+    // 1. Substituição direta case-sensitive
     Object.entries(state.data).forEach(([key, value]) => {
-      const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), valueStr);
+      const valueStr =
+        value instanceof Date
+          ? value.toISOString()
+          : typeof value === 'object'
+            ? JSON.stringify(value)
+            : value === null || value === undefined
+              ? ''
+              : String(value);
+      // Escapa caracteres especiais de regex (como o ponto de sys.date)
+      const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      result = result.replace(new RegExp(`{{${escapedKey}}}`, 'g'), valueStr);
     });
+
+    // 2. Fallback case-insensitive e diagnóstico para variáveis não resolvidas
+    const remainingTags = result.match(/{{([^{}]+)}}/g);
+    if (remainingTags && remainingTags.length > 0) {
+      remainingTags.forEach((tag) => {
+        const varName = tag.replace(/^{{\s*|\s*}}$/g, '').trim();
+        // Buscar no state.data ignorando maiúsculas/minúsculas
+        const matchingKey = Object.keys(state.data).find(
+          (k) => k.toLowerCase() === varName.toLowerCase()
+        );
+
+        if (matchingKey) {
+          const val = state.data[matchingKey];
+          const valStr =
+            val instanceof Date
+              ? val.toISOString()
+              : typeof val === 'object'
+                ? JSON.stringify(val)
+                : val === null || val === undefined
+                  ? ''
+                  : String(val);
+          result = result.replace(tag, valStr);
+        } else {
+          logger.warn(
+            `[FlowEngine] [Interpolate Warning] Variável "${tag}" não encontrada no estado da conversa. Chaves disponíveis: [${Object.keys(state.data).join(', ')}]`
+          );
+        }
+      });
+    }
 
     return result;
   }
@@ -915,22 +1344,27 @@ class FlowEngine {
    */
   static evaluateCondition(conditionStr, state) {
     try {
+      // Substituir referências data.xxx por variáveis planas
+      let normalized = conditionStr.replace(/data\.([a-zA-Z0-9_]+)/g, 'data_$1');
+
+      // Substituir pontos por sublinhados nas variáveis (ex: system.agents_online -> system_agents_online)
+      // para evitar conflitos com o tokenizer do SafeEvaluator que proíbe pontos.
+      normalized = normalized.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z0-9_]+)/g, '$1_$2');
+
       // Normalizar operadores JS para SafeEvaluator
-      let normalized = conditionStr
+      normalized = normalized
         .replace(/===/g, '==')
         .replace(/!==/g, '!=')
         .replace(/&&/g, ' and ')
         .replace(/\|\|/g, ' or ');
 
-      // Substituir referências data.xxx por variáveis planas
-      normalized = normalized.replace(/data\.([a-zA-Z0-9_]+)/g, 'data_$1');
-
       // Construir variáveis planas a partir de state.data
       const variables = {};
       if (state.data && typeof state.data === 'object') {
         for (const [key, value] of Object.entries(state.data)) {
-          variables[`data_${key}`] = value;
-          variables[key] = value;
+          const safeKey = key.replace(/\./g, '_');
+          variables[`data_${safeKey}`] = value;
+          variables[safeKey] = value;
         }
       }
 
@@ -946,6 +1380,111 @@ class FlowEngine {
    */
   static getNestedValue(obj, path) {
     return path.split('.').reduce((current, key) => current?.[key], obj);
+  }
+
+  /**
+   * Finaliza a pesquisa de satisfação (Survey), salvando as respostas.
+   */
+  static async finishSurvey(tenant, conversation, state) {
+    logger.info(`[FlowEngine] Pesquisa de satisfação finalizada para conversa ${conversation.id}`);
+
+    const responses = {};
+    if (state.data) {
+      Object.entries(state.data).forEach(([key, val]) => {
+        if (!key.startsWith('sys.') && !key.startsWith('system.') && !key.includes('.') && key !== 'name' && key !== 'phone' && key !== 'number' && key !== 'username') {
+          responses[key] = val;
+        }
+      });
+    }
+
+    // Evitar referências circulares recarregando contact para o socket
+    const freshConv = await prisma.conversation.findUnique({
+      where: { id: conversation.id },
+      include: { contact: { select: { phone: true, name: true } } }
+    });
+
+    const currentDept = getDeptFromFlowState(conversation.flowState);
+
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        status: 'CLOSED',
+        surveyResponses: responses,
+        flowState: currentDept ? { dept: currentDept } : null
+      }
+    });
+
+    // Enfileirar para IA se o recurso estiver habilitado
+    if (tenant?.featureAiSummary) {
+      try {
+        const { enqueueConversation } = require('../queues/aiQueue');
+        enqueueConversation(conversation.id);
+      } catch (err) {
+        logger.error(`[FlowEngine] Erro ao enfileirar para IA pós pesquisa: ${err.message}`);
+      }
+    }
+
+    // Disparar webhook de encerramento para CRM externo
+    try {
+      const CloseWebhookService = require('./CloseWebhookService');
+      CloseWebhookService.trigger(conversation.id).catch(err => {
+        logger.error(`[FlowEngine] Erro ao disparar CloseWebhook pós pesquisa: ${err.message}`);
+      });
+    } catch (err) {
+      logger.error(`[FlowEngine] Falha ao importar CloseWebhookService: ${err.message}`);
+    }
+
+    const socketService = require('./socket');
+    const io = socketService.getIO();
+    if (io) {
+      io.to(`tenant:${conversation.tenantId}`).emit('conversation_resolved', {
+        conversationId: conversation.id,
+        contactPhone: freshConv.contact?.phone,
+        contactName: freshConv.contact?.name,
+        disposition: freshConv.disposition || 'Pesquisa Respondida',
+        resolvedBy: 'sistema',
+        resolvedAt: new Date().toISOString(),
+        surveyResponses: responses
+      });
+    }
+
+    const QueueService = require('./QueueService');
+    QueueService.processQueue(conversation.tenantId).catch(err => {
+      logger.error('[FlowEngine] Erro ao processar fila pós pesquisa:', err.message);
+    });
+  }
+
+  static resolveTimeRoutingFlow(flows) {
+    if (!flows || !flows.timeRouting || !flows.timeRouting.enabled || !Array.isArray(flows.timeRouting.rules)) {
+      return flows?.active || 'Padrão';
+    }
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    for (const rule of flows.timeRouting.rules) {
+      if (!rule.flowId || !rule.start || !rule.end) continue;
+
+      const [sh, sm] = rule.start.split(':').map(Number);
+      const [eh, em] = rule.end.split(':').map(Number);
+      
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+
+      if (startMinutes > endMinutes) {
+        // Cruza meia-noite (ex: 21:00 às 08:00)
+        if (currentMinutes >= startMinutes || currentMinutes <= endMinutes) {
+          return rule.flowId;
+        }
+      } else {
+        // Intervalo padrão do mesmo dia (ex: 08:00 às 16:00)
+        if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+          return rule.flowId;
+        }
+      }
+    }
+
+    return flows.active || 'Padrão';
   }
 }
 

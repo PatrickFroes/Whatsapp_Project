@@ -2,43 +2,48 @@
  * ConfigurationController.js - Gerenciar configurações de API
  *
  * Responsável por:
- * - Obter configurações atuais
- * - Salvar novas configurações
- * - Validar credenciais
+ * - Obter configurações atuais (múltiplas)
+ * - Salvar/Atualizar configurações
+ * - Validar credenciais específicas por conexão
+ * - Deletar conexões
  */
 
 const logger = require('../utils/logger');
 const prisma = require('../services/database');
 const axios = require('axios');
 const { logAuditEvent, AuditAction } = require('../services/auditLog.service');
-const { validateWebhookHmac } = require('../middleware/webhookHmac.middleware');
 
 class ConfigurationController {
   /**
    * GET /api/admin/configuration
-   * Obter status de configuração (NÃO retorna valores sensíveis)
-   * Frontend responsável por deixar campos vazios se admin precisar editar
+   * Obter lista de configurações do tenant (NÃO retorna valores sensíveis)
    */
   static async getConfiguration(req, res) {
     try {
       const { tenantId } = req.user;
 
-      const config = await prisma.configuration.findUnique({
-        where: { tenantId }
+      const configs = await prisma.configuration.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' }
       });
 
-      if (!config) {
-        return res.status(404).json({ error: 'Configuration not found' });
-      }
-
       // Retorna APENAS status - valores sensíveis nunca saem do servidor
-      const statusOnly = {
+      const formatted = configs.map(config => ({
+        id: config.id,
         tenantId: config.tenantId,
+        name: config.name,
+        status: config.status,
+        phoneNumberId: config.phoneNumberId,
+        verifyToken: config.verifyToken ? '••••••••' : null,
+        whatsappToken: config.whatsappToken ? '••••••••' : null,
+        metaAppSecret: config.metaAppSecret ? '••••••••' : null,
+        wabaId: config.wabaId,
         isConfigured: {
           phoneNumberId: !!config.phoneNumberId,
           verifyToken: !!config.verifyToken,
           whatsappToken: !!config.whatsappToken,
           metaAppSecret: !!config.metaAppSecret,
+          wabaId: !!config.wabaId,
           allRequired: !!(
             config.phoneNumberId &&
             config.verifyToken &&
@@ -48,12 +53,12 @@ class ConfigurationController {
         },
         updatedAt: config.updatedAt,
         updatedBy: config.updatedBy
-      };
+      }));
 
-      res.json(statusOnly);
+      res.json(formatted);
     } catch (error) {
       logger.error('[Configuration] GET error:', error);
-      res.status(500).json({ error: 'Failed to fetch configuration' });
+      res.status(500).json({ error: 'Failed to fetch configuration list' });
     }
   }
 
@@ -64,7 +69,7 @@ class ConfigurationController {
   static async saveConfiguration(req, res) {
     try {
       const { tenantId, userId } = req.user;
-      const { phoneNumberId, verifyToken, whatsappToken, metaAppSecret } = req.validatedBody;
+      const { id, name, status, phoneNumberId, verifyToken, whatsappToken, metaAppSecret, wabaId } = req.validatedBody;
 
       // Verificar permissão de ADMIN ou OWNER
       if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(req.user.role)) {
@@ -79,20 +84,13 @@ class ConfigurationController {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      // Validar que pelo menos um campo de credencial está sendo fornecido
-      if (!phoneNumberId && !whatsappToken && !metaAppSecret && !verifyToken) {
-        return res.status(400).json({
-          error: 'Validation failed',
-          details: 'Must provide at least one credential field (phoneNumberId, whatsappToken, metaAppSecret, or verifyToken)'
-        });
-      }
-
-      // Se phoneNumberId está sendo atualizado, verificar se já é usado por outro tenant
+      // Validar se phoneNumberId já é usado por outro tenant
       if (phoneNumberId) {
         const existing = await prisma.configuration.findFirst({
           where: {
             phoneNumberId,
-            tenantId: { not: tenantId }  // Diferente tenant
+            id: id ? { not: id } : undefined,
+            tenantId: { not: tenantId }
           }
         });
 
@@ -104,58 +102,74 @@ class ConfigurationController {
         }
       }
 
-      // Estrutura de atualização - NUNCA sobrescrever com undefined
-      // Se campo vem vazio/null, mantém valor anterior
       const updateData = {
         updatedBy: userId,
         updatedAt: new Date()
       };
 
-      // Apenas atualizar campos que vêm preenchidos
-      if (phoneNumberId) updateData.phoneNumberId = phoneNumberId;
-      if (verifyToken) updateData.verifyToken = verifyToken;
-      if (whatsappToken) updateData.whatsappToken = whatsappToken;
-      if (metaAppSecret) updateData.metaAppSecret = metaAppSecret;
+      if (name) { updateData.name = name; }
+      if (status) { updateData.status = status; }
+      if (phoneNumberId) { updateData.phoneNumberId = phoneNumberId; }
+      if (verifyToken) { updateData.verifyToken = verifyToken; }
+      if (whatsappToken) { updateData.whatsappToken = whatsappToken; }
+      if (metaAppSecret) { updateData.metaAppSecret = metaAppSecret; }
+      if (wabaId !== undefined) { updateData.wabaId = wabaId; }
 
-      // Atualizar Configuration (REMOVIDO: sincronização com Tenant)
-      const config = await prisma.configuration.upsert({
-        where: { tenantId },
-        update: updateData,
-        create: {
-          tenantId,
-          phoneNumberId: phoneNumberId || null,
-          verifyToken: verifyToken || null,
-          whatsappToken: whatsappToken || null,
-          metaAppSecret: metaAppSecret || null,
-          updatedBy: userId
+      let config;
+      if (id) {
+        // Update existing connection
+        config = await prisma.configuration.update({
+          where: { id, tenantId },
+          data: updateData
+        });
+      } else {
+        // Create new connection
+        const count = await prisma.configuration.count({ where: { tenantId } });
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { limitWhatsappConnections: true }
+        });
+        if (tenant && count >= tenant.limitWhatsappConnections) {
+          return res.status(403).json({
+            error: `Limite de conexões de WhatsApp atingido (${tenant.limitWhatsappConnections} conexões contratadas).`
+          });
         }
-      });
+        config = await prisma.configuration.create({
+          data: {
+            tenantId,
+            name: name || `Conexão ${count + 1}`,
+            status: status || 'CONNECTED',
+            phoneNumberId: phoneNumberId || null,
+            verifyToken: verifyToken || null,
+            whatsappToken: whatsappToken || null,
+            metaAppSecret: metaAppSecret || null,
+            wabaId: wabaId || null,
+            updatedBy: userId
+          }
+        });
+      }
 
       // Log audit
       await logAuditEvent(AuditAction.UPDATE_SETTINGS, {
         userId,
         tenantId,
         resource: 'Configuration',
-        resourceId: tenantId,
+        resourceId: config.id,
         success: true,
         details: {
-          fieldsUpdated: [
-            phoneNumberId ? 'phoneNumberId' : null,
-            verifyToken ? 'verifyToken' : null,
-            whatsappToken ? 'whatsappToken' : null,
-            metaAppSecret ? 'metaAppSecret' : null
-          ].filter(Boolean)
+          fieldsUpdated: Object.keys(updateData).filter(k => k !== 'updatedBy' && k !== 'updatedAt')
         }
       });
 
-      // Responder com status apenas
       res.json({
         message: 'Configuration saved successfully',
+        id: config.id,
         isConfigured: {
           phoneNumberId: !!config.phoneNumberId,
           verifyToken: !!config.verifyToken,
           whatsappToken: !!config.whatsappToken,
           metaAppSecret: !!config.metaAppSecret,
+          wabaId: !!config.wabaId,
           allRequired: !!(
             config.phoneNumberId &&
             config.verifyToken &&
@@ -187,35 +201,77 @@ class ConfigurationController {
   }
 
   /**
+   * DELETE /api/admin/configuration/:id
+   * Deletar uma conexão específica
+   */
+  static async deleteConfiguration(req, res) {
+    try {
+      const { tenantId, userId } = req.user;
+      const { id } = req.params;
+
+      if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      // Evitar que delete a última conexão ativa do tenant
+      const count = await prisma.configuration.count({ where: { tenantId } });
+      if (count <= 1) {
+        return res.status(400).json({
+          error: 'Failed to delete',
+          details: 'Não é possível remover a única conexão ativa de WhatsApp. Cadastre outra antes de excluir esta.'
+        });
+      }
+
+      await prisma.configuration.delete({
+        where: { id, tenantId }
+      });
+
+      // Log audit
+      await logAuditEvent(AuditAction.UPDATE_SETTINGS, {
+        userId,
+        tenantId,
+        resource: 'Configuration',
+        resourceId: id,
+        success: true,
+        details: { action: 'delete_connection' }
+      });
+
+      res.json({ message: 'Configuration deleted successfully' });
+    } catch (error) {
+      logger.error('[Configuration] DELETE error:', error);
+      res.status(500).json({ error: 'Failed to delete configuration' });
+    }
+  }
+
+  /**
    * POST /api/admin/configuration/validate
    * Validar se credenciais funcionam
    */
   static async validateConfiguration(req, res) {
     try {
       const { tenantId } = req.user;
+      const { id } = req.body || req.query;
 
-      const config = await prisma.configuration.findUnique({
-        where: { tenantId }
-      });
+      let config;
+      if (id) {
+        config = await prisma.configuration.findFirst({
+          where: { id, tenantId }
+        });
+      } else {
+        config = await prisma.configuration.findFirst({
+          where: { tenantId }
+        });
+      }
 
       if (!config) {
         return res.status(404).json({ error: 'Configuration not found' });
       }
 
-      // Verificar se todos os campos obrigatórios estão preenchidos
       const missing = [];
-      if (!config.phoneNumberId) {
-        missing.push('phoneNumberId');
-      }
-      if (!config.verifyToken) {
-        missing.push('verifyToken');
-      }
-      if (!config.whatsappToken) {
-        missing.push('whatsappToken');
-      }
-      if (!config.metaAppSecret) {
-        missing.push('metaAppSecret');
-      }
+      if (!config.phoneNumberId) { missing.push('phoneNumberId'); }
+      if (!config.verifyToken) { missing.push('verifyToken'); }
+      if (!config.whatsappToken) { missing.push('whatsappToken'); }
+      if (!config.metaAppSecret) { missing.push('metaAppSecret'); }
 
       if (missing.length > 0) {
         return res.status(400).json({
@@ -225,8 +281,7 @@ class ConfigurationController {
         });
       }
 
-      // Validação real na Meta Graph API.
-      const graphApiUrl = `https://graph.facebook.com/v23.0/${config.phoneNumberId}`;
+      const graphApiUrl = `https://graph.facebook.com/v18.0/${config.phoneNumberId}`;
 
       try {
         const graphResponse = await axios.get(graphApiUrl, {
@@ -249,6 +304,12 @@ class ConfigurationController {
           });
         }
 
+        // Marcar conexão como CONNECTED
+        await prisma.configuration.update({
+          where: { id: config.id },
+          data: { status: 'CONNECTED' }
+        });
+
         return res.json({
           valid: true,
           message: 'Configuration validated against Meta API',
@@ -257,17 +318,17 @@ class ConfigurationController {
             displayPhoneNumber: phoneData.display_phone_number || null,
             verifiedName: phoneData.verified_name || null,
             qualityRating: phoneData.quality_rating || null
-          },
-          fieldsConfigured: {
-            phoneNumberId: true,
-            verifyToken: true,
-            whatsappToken: true,
-            metaAppSecret: true
           }
         });
       } catch (metaError) {
         const status = metaError.response?.status;
         const message = metaError.response?.data?.error?.message || metaError.message;
+
+        // Marcar conexão como ERROR
+        await prisma.configuration.update({
+          where: { id: config.id },
+          data: { status: 'ERROR' }
+        });
 
         return res.status(400).json({
           valid: false,

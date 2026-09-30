@@ -1,6 +1,6 @@
 body {
-  background-color: #d1d7db;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--color-bg-main);
+  font-family: var(--font-family-base);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -19,51 +19,53 @@ body {
   border-radius: 3px;
 }
 
-/* Chat Items in Sidebar */
+/* Chat Items in Sidebar - Nested Tech Design */
 .chat-item {
-  transition: background-color 0.2s;
-  border-bottom: 1px solid #f0f2f5;
+  margin: 6px 10px;
+  border-radius: 8px;
+  border: none !important;
+  transition: all 0.15s ease-in-out;
   background: white;
 }
 .chat-item:hover {
-  background-color: #f5f6f6;
+  background-color: rgba(0, 0, 0, 0.04);
 }
 .chat-item.active {
-  background-color: #f0f2f5;
-  border-left: 4px solid #198754;
+  background-color: var(--color-secondary-light) !important;
+  color: var(--color-text-title) !important;
 }
 
-/* Message Bubbles */
+/* Message Bubbles - Arredondadas & Simétricas */
 .message-bubble {
   max-width: 65%;
-  padding: 8px 12px;
-  border-radius: 7.5px;
+  padding: 10px 14px;
+  border-radius: 12px;
   position: relative;
-  font-size: 14.2px;
-  line-height: 19px;
-  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
-  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  margin-bottom: 10px;
   word-wrap: break-word;
 }
 
 .message-in {
-  background-color: #ffffff;
+  background-color: #ECEFF1 !important;
   align-self: flex-start;
-  border-top-left-radius: 0;
+  border: 1px solid #CFD8DC !important;
 }
 
 .message-out {
-  background-color: #d9fdd3;
+  background-color: #B5DDD6 !important;
   align-self: flex-end;
-  border-top-right-radius: 0;
+  border: 1px solid #91CFC5 !important;
 }
 
 .message-meta {
   float: right;
   margin-left: 8px;
   margin-top: 4px;
-  font-size: 11px;
-  color: #667781;
+  font-size: 10.5px;
+  color: #8899A6;
 }
 
 .system-message {
@@ -83,9 +85,9 @@ body {
   min-height: 100vh;
 }
 .bg-whatsapp-wall {
-  background-color: #efeae2;
-  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
-  background-repeat: repeat;
+  background-color: #F8FAFC !important;
+  background-image: radial-gradient(rgba(1, 116, 94, 0.08) 1.2px, transparent 1.2px) !important;
+  background-size: 16px 16px !important;
 }
 
 .log-entry {
@@ -137,4 +139,90 @@ body {
   body.chat-active #chatArea {
     display: flex !important;
   }
+}
+
+/* Color overrides for brand green #01745E */
+.bg-success {
+  background-color: #01745E !important;
+}
+.text-success {
+  color: #01745E !important;
+}
+.btn-success {
+  background-color: #01745E !important;
+  border-color: #01745E !important;
+}
+.btn-success:hover,
+.btn-success:focus,
+.btn-success:active {
+  background-color: #005a48 !important;
+  border-color: #005a48 !important;
+}
+.btn-outline-success {
+  color: #01745E !important;
+  border-color: #01745E !important;
+}
+.btn-outline-success:hover,
+.btn-outline-success:focus,
+.btn-outline-success:active {
+  background-color: #01745E !important;
+  color: #fff !important;
+}
+
+/* Layout & Sidebar Clean Tech */
+#chatListSidebar {
+  background-color: #FFFFFF !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+#chatListSidebar .bg-light,
+#chatListSidebar .bg-white,
+#tabsFilterContainer,
+#chatList {
+  background-color: #FFFFFF !important;
+}
+
+.chat-item {
+  background-color: #FFFFFF !important;
+  border: none !important;
+  margin: 6px 12px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.15s ease-in-out;
+}
+
+.chat-item:hover {
+  background-color: #F8FAFC !important;
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08) !important;
+}
+
+.chat-item.active {
+  background-color: var(--color-secondary-light) !important;
+  border-left: 3px solid var(--color-primary) !important;
+  box-shadow: 0 2px 6px rgba(1, 116, 94, 0.1) !important;
+}
+
+/* Área de Chat & Headers - Papel de Parede Clássico WhatsApp */
+.bg-whatsapp-wall {
+  background-color: #efeae2 !important;
+  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png') !important;
+  background-repeat: repeat !important;
+  background-size: auto !important;
+}
+
+#chatHeader {
+  background-color: #FFFFFF !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+
+#inputArea {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 12px !important;
+  margin: 12px 16px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
+  padding: 10px 16px !important;
+  transition: all 0.15s ease-in-out;
 }

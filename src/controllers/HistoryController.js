@@ -163,7 +163,7 @@ class HistoryController {
         }
       });
 
-      if (!activeConversation) {
+      if (req.user.role === 'AGENT' && !activeConversation) {
         return res.status(403).json({
           error: 'Acesso negado',
           message: 'Você só pode visualizar histórico durante uma conversa ativa com este cliente'
@@ -211,6 +211,13 @@ class HistoryController {
         }
       });
 
+      // Extrair token cru do request atual do supervisor para repassar na URL da mídia
+      const authHeader = req.headers['authorization'];
+      let token = authHeader && authHeader.split(' ')[1];
+      if (!token && req.cookies && req.cookies.auth_token) {
+        token = require('../utils/crypto').decrypt(req.cookies.auth_token) || req.cookies.auth_token;
+      }
+
       res.json({
         session: {
           id: requestedSession.id,
@@ -221,9 +228,14 @@ class HistoryController {
           agent: requestedSession.assignedTo?.name,
           status: requestedSession.status,
           disposition: requestedSession.disposition,
+          closingNotes: requestedSession.closingNotes,
+          surveyResponses: requestedSession.surveyResponses,
           started_at: requestedSession.createdAt,
           ended_at: requestedSession.status === 'RESOLVED' ? requestedSession.updatedAt : null,
-          is_current: requestedSession.id === activeConversation.id
+          is_current: activeConversation ? requestedSession.id === activeConversation.id : false,
+          aiSummary: requestedSession.aiSummary,
+          aiSentiment: requestedSession.aiSentiment,
+          aiTags: requestedSession.aiTags
         },
         pagination: {
           page: parseInt(page),
@@ -239,7 +251,7 @@ class HistoryController {
           timestamp: msg.createdAt,
           wa_message_id: msg.waMessageId,
           status: msg.status,
-          media_url: msg.mediaUrl
+          media_url: msg.mediaUrl ? `/api/media/download/${msg.mediaUrl}?token=${token || ''}` : null
         })),
         internal_notes: internalNotes.map((note) => ({
           id: note.id,

@@ -13,14 +13,28 @@ async function getCredentials(tenant) {
   }
 
   // Get Configuration for this tenant
-  const config = await prisma.configuration.findUnique({
-    where: { tenantId: tenant.id },
-    select: {
-      tenantId: true,
-      phoneNumberId: true,
-      whatsappToken: true
-    }
-  });
+  let config;
+  if (tenant.whatsappPhoneId) {
+    config = await prisma.configuration.findFirst({
+      where: { tenantId: tenant.id, phoneNumberId: tenant.whatsappPhoneId },
+      select: {
+        tenantId: true,
+        phoneNumberId: true,
+        whatsappToken: true
+      }
+    });
+  }
+
+  if (!config) {
+    config = await prisma.configuration.findFirst({
+      where: { tenantId: tenant.id },
+      select: {
+        tenantId: true,
+        phoneNumberId: true,
+        whatsappToken: true
+      }
+    });
+  }
 
   if (!config) {
     logger.error(`[WhatsApp] No Configuration found for tenant: ${tenant.id}`);
@@ -172,11 +186,62 @@ async function sendMessage(to, content, tenant = null) {
   }
 }
 
-module.exports = { sendMessage };
+// Envio de Templates
+async function sendTemplate(to, templateName, languageCode = 'pt_BR', components = [], tenant = null) {
+  if (!tenant) {
+    logger.error('[WhatsApp] Tenant not provided - cannot send template');
+    return null;
+  }
 
-// Futuro: Implementar envio de Templates aqui
-async function sendTemplate(to, templateName, languageCode = 'pt_BR') {
-  // Implementação futura para "Active Notifications"
+  const credentials = await getCredentials(tenant);
+
+  if (!credentials) {
+    logger.error('[WhatsApp] Failed to get credentials for tenant', {
+      tenantId: tenant.id,
+      tenantName: tenant.name
+    });
+    return null;
+  }
+
+  const dataPayload = {
+    messaging_product: 'whatsapp',
+    to: to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: {
+        code: languageCode
+      },
+      components: components
+    }
+  };
+
+  try {
+    const response = await axios({
+      method: 'POST',
+      url: `${credentials.url}/messages`,
+      data: dataPayload,
+      headers: {
+        Authorization: `Bearer ${credentials.token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: META_API_TIMEOUT_MS
+    });
+
+    logger.debug(`[WhatsApp] ✓ Template ${templateName} sent to ${to}`, {
+      tenant: tenant.name,
+      tenantId: tenant.id,
+      phoneNumberId: credentials.phoneNumberId,
+      status: response.status
+    });
+
+    return response.data;
+  } catch (error) {
+    const status = error.response?.status;
+    const errorData = error.response?.data || { message: error.message };
+    logger.error(`[WhatsApp] ✗ Failed to send template ${templateName} to ${to}:`, errorData.error?.message || errorData.message);
+    return null;
+  }
 }
 
 module.exports = {

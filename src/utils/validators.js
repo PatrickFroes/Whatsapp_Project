@@ -240,6 +240,29 @@ function sanitizeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+function getBrPhoneOptions(phone) {
+  if (!phone || typeof phone !== 'string') {
+    return [];
+  }
+  const cleaned = phone.replace(/\D/g, '');
+  const options = [cleaned];
+
+  if (cleaned.startsWith('55') && cleaned.length >= 10) {
+    const ddd = cleaned.substring(2, 4);
+    const dddNum = parseInt(ddd, 10);
+    if (dddNum >= 11 && dddNum <= 99) {
+      if (cleaned.length === 13) {
+        const alt = cleaned.substring(0, 4) + cleaned.substring(5);
+        options.push(alt);
+      } else if (cleaned.length === 12) {
+        const alt = cleaned.substring(0, 4) + '9' + cleaned.substring(4);
+        options.push(alt);
+      }
+    }
+  }
+  return options;
+}
+
 module.exports = {
   validateEmail,
   validatePassword,
@@ -250,5 +273,6 @@ module.exports = {
   validateInteger,
   validateSlug,
   validateJSON,
-  sanitizeHtml
+  sanitizeHtml,
+  getBrPhoneOptions
 };

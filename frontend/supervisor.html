@@ -18,15 +18,16 @@
       href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="css/amberfy_theme.css?v=1.1" />
 
     <style>
       body {
-        background-color: #f0f2f5;
-        font-family: 'Segoe UI', sans-serif;
+        background-color: var(--color-bg-main);
+        font-family: var(--font-family-base);
       }
 
       .role-badge {
-        background: #6f42c1;
+        background: var(--color-primary);
         color: white;
         padding: 5px 10px;
         border-radius: 20px;
@@ -35,15 +36,49 @@
       }
 
       .stat-card {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        text-align: center;
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 4px 20px -2px rgba(1, 116, 94, 0.04), 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        transition: all 0.25s ease;
+      }
+      .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px -5px rgba(1, 116, 94, 0.08), 0 8px 16px -6px rgba(0, 0, 0, 0.03);
       }
       .stat-card h2 {
         margin: 0;
-        font-weight: bold;
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .stat-card .stat-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #64748b;
+        margin-top: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .stat-card .stat-icon {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 2.8rem;
+        opacity: 0.12;
+        pointer-events: none;
+        transition: transform 0.25s ease;
+      }
+      .stat-card:hover .stat-icon {
+        transform: translateY(-50%) scale(1.1);
       }
 
       .monitor-row {
@@ -55,23 +90,87 @@
       }
 
       .live-chat-preview {
-        background: #fff;
-        border-left: 4px solid #0d6efd;
+        background: var(--color-bg-card);
+        border-left: 4px solid var(--color-primary);
         margin-bottom: 10px;
         padding: 15px;
-        border-radius: 5px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border-radius: var(--border-radius-input);
+        box-shadow: var(--shadow-card);
         cursor: pointer;
       }
       .live-chat-preview:hover {
         transform: translateY(-2px);
         transition: all 0.2s;
       }
+
+      /* Estilo Ficheiro de Papel para as abas */
+      #superTab.nav-tabs {
+        border-bottom: 2px solid #005c53; /* Linha verde separando as abas */
+      }
+      #superTab .nav-item {
+        margin-bottom: -2px; /* Sobrepor a linha inferior */
+      }
+      #superTab .nav-link {
+        color: #005c53 !important; /* Texto em verde */
+        font-weight: 600;
+        background-color: #f1f5f9; /* Fundo cinza das inativas */
+        border: 2px solid #cbd5e1 !important; /* Contorno mais forte */
+        border-bottom: none !important; /* Sem borda inferior */
+        border-top-left-radius: 12px !important; /* Quinas mais arredondadas */
+        border-top-right-radius: 12px !important;
+        margin-right: 4px;
+        padding: 8px 16px;
+        transition: all 0.15s ease-in-out;
+      }
+      #superTab .nav-link:hover {
+        background-color: #e2e8f0;
+        border-color: #94a3b8 !important;
+      }
+      #superTab .nav-link.active {
+        background-color: #ffffff !important; /* Fundo branco */
+        border-color: #005c53 !important; /* Contorno forte em verde */
+        border-bottom: 2px solid #ffffff !important; /* Fusão perfeita com o card */
+        font-weight: 700;
+        box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.05);
+      }
+
+      /* Estilização Premium dos Gráficos & Dashboard */
+      #metrics-pane .card {
+        border-radius: 16px !important;
+        border: 1px solid rgba(1, 116, 94, 0.08) !important;
+        box-shadow: 0 10px 25px -5px rgba(1, 116, 94, 0.03), 0 8px 16px -6px rgba(0, 0, 0, 0.01) !important;
+        transition: all 0.3s ease;
+      }
+      
+      #metrics-pane .card:hover {
+        box-shadow: 0 15px 30px -5px rgba(1, 116, 94, 0.08), 0 10px 20px -6px rgba(0, 0, 0, 0.02) !important;
+        transform: translateY(-2px);
+      }
+
+      #metrics-pane .card-header {
+        border-top-left-radius: 15px !important;
+        border-top-right-radius: 15px !important;
+        background: linear-gradient(90deg, #ffffff 0%, #f8fafc 100%) !important;
+        border-bottom: 1px solid rgba(1, 116, 94, 0.06) !important;
+        font-family: var(--font-family-base);
+        font-weight: 700 !important;
+        letter-spacing: 0.01em;
+      }
+
+      #metrics-pane .card-body {
+        border-bottom-left-radius: 15px !important;
+        border-bottom-right-radius: 15px !important;
+      }
+      
+      /* Grid e Responsividade dos Gráficos */
+      #chartsContainer {
+        padding: 8px;
+      }
     </style>
   </head>
   <body onload="initSupervisor()">
     <!-- Navbar -->
-    <nav class="navbar navbar-dark bg-secondary px-3">
+    <nav class="navbar navbar-dark bg-dark px-3">
       <a class="navbar-brand" href="#"> <i class="bi bi-eye-fill"></i> Mesa de Supervisão </a>
       <div class="d-flex align-items-center gap-3">
         <span class="text-white small" id="supervisorName">...</span>
@@ -84,27 +183,31 @@
       <!-- KPIs da Equipe -->
       <div class="row g-3 mb-4">
         <div class="col-md-3">
-          <div class="stat-card" style="border-bottom: 4px solid #198754">
+          <div class="stat-card" style="border-left: 4px solid #10b981">
             <h2 class="text-success" id="statOnline">0</h2>
-            <span class="text-muted">Agentes Online</span>
+            <span class="stat-label">Agentes Online</span>
+            <i class="bi bi-people-fill stat-icon text-success"></i>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="stat-card" style="border-bottom: 4px solid #dc3545">
+          <div class="stat-card" style="border-left: 4px solid #ef4444">
             <h2 class="text-danger" id="statBusy">0</h2>
-            <span class="text-muted">Em Atendimento</span>
+            <span class="stat-label">Em Atendimento</span>
+            <i class="bi bi-chat-dots-fill stat-icon text-danger"></i>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="stat-card" style="border-bottom: 4px solid #6c757d">
+          <div class="stat-card" style="border-left: 4px solid #64748b">
             <h2 class="text-secondary" id="statOffline">0</h2>
-            <span class="text-muted">Offline</span>
+            <span class="stat-label">Offline</span>
+            <i class="bi bi-person-x-fill stat-icon text-secondary"></i>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="stat-card" style="border-bottom: 4px solid #0d6efd">
+          <div class="stat-card" style="border-left: 4px solid #3b82f6">
             <h2 class="text-primary" id="statQueued">0</h2>
-            <span class="text-muted">Fila de espera</span>
+            <span class="stat-label">Fila de espera</span>
+            <i class="bi bi-hourglass-split stat-icon text-primary"></i>
           </div>
         </div>
       </div>
@@ -116,7 +219,7 @@
             <div class="card-header bg-white fw-bold">
               <i class="bi bi-people"></i> Equipe em Tempo Real
               <button
-                class="btn btn-sm btn-link float-end text-decoration-none"
+                class="btn btn-sm btn-primary float-end"
                 onclick="loadTeam()"
               >
                 Atualizar
@@ -148,6 +251,19 @@
             <li class="nav-item" role="presentation">
               <button
                 class="nav-link"
+                id="metrics-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#metrics-pane"
+                type="button"
+                role="tab"
+                onclick="loadDashboardStats()"
+              >
+                Gráficos & Métricas
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
                 id="history-tab"
                 data-bs-toggle="tab"
                 data-bs-target="#history-pane"
@@ -156,6 +272,45 @@
                 onclick="loadHistory()"
               >
                 Histórico Recente
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="mass-send-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#mass-send-pane"
+                type="button"
+                role="tab"
+                onclick="loadMassSendTemplates()"
+              >
+                Disparo em Massa
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="reports-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#reports-pane"
+                type="button"
+                role="tab"
+                onclick="initReportsTab()"
+              >
+                Relatórios
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="audit-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#audit-pane"
+                type="button"
+                role="tab"
+                onclick="initAuditTab()"
+              >
+                Auditoria de Chats
               </button>
             </li>
           </ul>
@@ -170,6 +325,27 @@
                   style="max-height: 600px"
                 >
                   <div class="text-center py-5 text-muted">Carregando atendimentos...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- METRICS PANE -->
+            <div class="tab-pane fade" id="metrics-pane" role="tabpanel">
+              <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center fw-bold py-3">
+                  <span class="fs-5 text-primary"><i class="bi bi-graph-up-arrow"></i> Métricas em Tempo Real</span>
+                  <button class="btn btn-sm btn-primary" onclick="openCreateChartModal()">
+                    <i class="bi bi-plus-circle"></i> Criar Gráfico Customizado
+                  </button>
+                </div>
+                <div class="card-body bg-white p-4">
+                  <div class="row g-3" id="chartsContainer">
+                    <!-- Populated dynamically via JS -->
+                    <div class="col-12 text-center text-muted py-5">
+                      <i class="bi bi-bar-chart fs-1 mb-2 d-block"></i>
+                      Nenhum gráfico customizado ativo. Clique em "Criar Gráfico Customizado" acima!
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -189,6 +365,269 @@
                 </div>
               </div>
             </div>
+
+            <!-- MASS SEND PANE -->
+            <div class="tab-pane fade" id="mass-send-pane" role="tabpanel">
+              <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white fw-bold">Novo Disparo em Massa</div>
+                <div class="card-body bg-light overflow-auto p-4" style="max-height: 600px">
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Conexão WhatsApp Remetente *</label>
+                    <select id="massConnectionSelect" class="form-select" required>
+                      <option value="">Carregando conexões...</option>
+                    </select>
+                    <small class="text-muted">A linha selecionada será usada para realizar os disparos.</small>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label fw-bold">Template</label>
+                    <select id="massTemplateSelect" class="form-select" onchange="handleMassTemplateSelectChange()">
+                      <option value="">Selecione um template...</option>
+                    </select>
+                  </div>
+                  
+                  <div id="massTemplatePreviewContainer" class="mb-3 d-none">
+                    <label class="form-label fw-bold">Pré-visualização</label>
+                    <div id="massTemplatePreview" class="p-3 bg-white rounded text-muted" style="white-space: pre-wrap; font-size: 14px; border: 1px solid #dee2e6;"></div>
+                  </div>
+
+                  <div id="massTemplateParamsContainer" class="mb-3 d-none">
+                    <label class="form-label fw-bold">Variáveis do Template</label>
+                    <div id="massTemplateParamsList" class="d-flex flex-column gap-2 bg-white p-3 rounded border"></div>
+                  </div>
+
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="massIsCsvMode" onchange="toggleMassCsvMode(this.checked)">
+                    <label class="form-check-label fw-bold" for="massIsCsvMode">Modo Personalizado (CSV)</label>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label fw-bold" id="massPhonesLabel">Números de Destino (um por linha)</label>
+                    <textarea id="massPhonesInput" class="form-control" rows="6" placeholder="5511999999999&#10;5511988888888"></textarea>
+                    <small class="text-muted" id="massPhonesHelp">Insira os números com DDI (ex: 55) e DDD. Apenas números, um por linha.</small>
+                  </div>
+
+                  <button type="button" class="btn btn-primary" onclick="submitMassTemplateSend()">Enviar Disparo</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- REPORTS PANE -->
+            <div class="tab-pane fade" id="reports-pane" role="tabpanel">
+              <div class="card shadow-sm border-0">
+                <div class="card-header bg-white fw-bold"><i class="bi bi-file-earmark-bar-graph"></i> Relatórios de Atendimento</div>
+                <div class="card-body bg-light p-4">
+                  <!-- Filtros -->
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Data Inicial</label>
+                      <input type="date" id="repStartDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Data Final</label>
+                      <input type="date" id="repEndDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Agente</label>
+                      <select id="repAgentSelect" class="form-select form-select-sm">
+                        <option value="">Todos os Agentes</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Skill / Departamento</label>
+                      <select id="repSkillSelect" class="form-select form-select-sm">
+                        <option value="">Todas as Skills</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Status</label>
+                      <select id="repStatusSelect" class="form-select form-select-sm">
+                        <option value="">Todos os Status</option>
+                        <option value="BOT">URA (Bot)</option>
+                        <option value="QUEUED">Fila de Espera</option>
+                        <option value="ASSIGNED">Em Atendimento</option>
+                        <option value="RESOLVED">Resolvidos</option>
+                        <option value="CLOSED">Fechados</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Canais</label>
+                      <div class="d-flex gap-3 align-items-center" style="height: 31px;">
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input rep-channel-checkbox" type="checkbox" id="repChanWA" value="WHATSAPP" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="repChanWA" style="cursor:pointer;">WhatsApp</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input rep-channel-checkbox" type="checkbox" id="repChanWC" value="WEBCHAT" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="repChanWC" style="cursor:pointer;">Webchat</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input rep-channel-checkbox" type="checkbox" id="repChanTG" value="TELEGRAM" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="repChanTG" style="cursor:pointer;">Telegram</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end gap-2">
+                      <button class="btn btn-primary btn-sm px-3" onclick="queryReports()">
+                        <i class="bi bi-search"></i> Filtrar
+                      </button>
+                      <button class="btn btn-outline-success btn-sm px-3" onclick="exportReportsCsv()">
+                        <i class="bi bi-file-earmark-excel"></i> Exportar CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Indicadores de Contact Center (TME, TMA, FCR) -->
+                  <div class="row g-3 mb-4" id="repMetricsContainer" style="display: none;">
+                    <div class="col-md-4">
+                      <div class="card border-0 shadow-sm bg-white h-100 p-3" style="border-left: 4px solid #0d6efd !important;">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <span class="text-muted small fw-bold text-uppercase d-block">TME Médio (Espera)</span>
+                            <h4 class="fw-bold mb-0 text-primary" id="repMetricTME">--</h4>
+                            <small class="text-muted" style="font-size: 0.72rem;">Tempo na fila até 1º atendimento humano</small>
+                          </div>
+                          <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary fs-3">
+                            <i class="bi bi-hourglass-split"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-4">
+                      <div class="card border-0 shadow-sm bg-white h-100 p-3" style="border-left: 4px solid #198754 !important;">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <span class="text-muted small fw-bold text-uppercase d-block">TMA Médio (Atendimento)</span>
+                            <h4 class="fw-bold mb-0 text-success" id="repMetricTMA">--</h4>
+                            <small class="text-muted" style="font-size: 0.72rem;">Duração média do atendimento humano</small>
+                          </div>
+                          <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success fs-3">
+                            <i class="bi bi-headset"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-4">
+                      <div class="card border-0 shadow-sm bg-white h-100 p-3" style="border-left: 4px solid #f59e0b !important;">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <span class="text-muted small fw-bold text-uppercase d-block">Taxa FCR (1º Contato)</span>
+                            <h4 class="fw-bold mb-0 text-warning-emphasis" id="repMetricFCR">--</h4>
+                            <small class="text-muted" style="font-size: 0.72rem;">Resolvidos sem transferência</small>
+                          </div>
+                          <div class="bg-warning bg-opacity-10 p-3 rounded-circle text-warning fs-3">
+                            <i class="bi bi-check2-circle"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Tabela de Resultados -->
+                  <div class="table-responsive bg-white rounded border" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover table-striped align-middle mb-0" style="font-size: 0.85rem;">
+                      <thead class="table-light sticky-top">
+                        <tr>
+                          <th>Cliente</th>
+                          <th>Origem</th>
+                          <th>Canal</th>
+                          <th>Status</th>
+                          <th>Skill</th>
+                          <th>Agente</th>
+                          <th>Mensagens</th>
+                          <th>Criado em</th>
+                          <th>Desfecho</th>
+                          <th>Avaliação (NPS)</th>
+                          <th>Sentimento IA</th>
+                        </tr>
+                      </thead>
+                      <tbody id="reportsTableBody">
+                        <tr>
+                          <td colspan="11" class="text-center text-muted py-4">Utilize os filtros acima para pesquisar.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+              </div>
+            </div>
+            </div>
+            <!-- AUDIT PANE -->
+            <div class="tab-pane fade" id="audit-pane" role="tabpanel">
+              <div class="card shadow-sm border-0">
+                <div class="card-header bg-white fw-bold"><i class="bi bi-shield-check"></i> Auditoria & Histórico Completo</div>
+                <div class="card-body bg-light p-4">
+                  <!-- Filtros -->
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Data Inicial</label>
+                      <input type="date" id="auditStartDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Data Final</label>
+                      <input type="date" id="auditEndDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Agente</label>
+                      <select id="auditAgentSelect" class="form-select form-select-sm">
+                        <option value="">Todos os Agentes</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Busca (Nome/Telefone)</label>
+                      <input type="text" id="auditQueryInput" class="form-control form-control-sm" placeholder="Nome ou telefone..." />
+                    </div>
+                    <div class="col-lg-5 col-md-6">
+                      <label class="form-label small fw-bold">Canais</label>
+                      <div class="d-flex gap-3 align-items-center" style="height: 31px;">
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input audit-channel-checkbox" type="checkbox" id="auditChanWA" value="WHATSAPP" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="auditChanWA" style="cursor:pointer;">WhatsApp</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input audit-channel-checkbox" type="checkbox" id="auditChanWC" value="WEBCHAT" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="auditChanWC" style="cursor:pointer;">Webchat</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                          <input class="form-check-input audit-channel-checkbox" type="checkbox" id="auditChanTG" value="TELEGRAM" checked />
+                          <label class="form-check-label small fw-bold mb-0" for="auditChanTG" style="cursor:pointer;">Telegram</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                      <button class="btn btn-primary btn-sm px-3" onclick="searchAuditChats()">
+                        <i class="bi bi-search"></i> Pesquisar
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Tabela de Resultados -->
+                  <div class="table-responsive bg-white rounded border" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover table-striped align-middle mb-0" style="font-size: 0.85rem;">
+                      <thead class="table-light sticky-top">
+                        <tr>
+                          <th>Cliente</th>
+                          <th>Origem</th>
+                          <th>Canal</th>
+                          <th>Status</th>
+                          <th>Skill</th>
+                          <th>Agente</th>
+                          <th>Criado em</th>
+                          <th>Avaliação (NPS)</th>
+                          <th class="text-center">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody id="auditTableBody">
+                        <tr>
+                          <td colspan="9" class="text-center text-muted py-4">Utilize os filtros acima para pesquisar.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -202,23 +641,199 @@
             <h5 class="modal-title" id="spyModalLabel">Visualizador</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div
-            class="modal-body bg-secondary bg-opacity-10"
-            id="spyModalBody"
-            style="height: 500px; overflow-y: auto"
-          >
-            <!-- Messages go here -->
-          </div>
-          <div class="modal-footer">
-            <small class="text-muted w-100 text-center"
-              >* Modo Visualização (Apenas Leitura) *</small
+          <div class="modal-body bg-secondary bg-opacity-10 d-flex flex-column" style="height: 500px;">
+            <!-- AI Summary Card (Fixo no Topo) -->
+            <div id="aiSummaryContainer" class="p-3 mb-2 bg-white border-start border-4 border-info rounded shadow-sm" style="display: none; flex-shrink: 0;">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-info mb-0"><i class="bi bi-robot"></i> Análise de Inteligência Artificial</h6>
+                <span id="aiSentimentBadge" class="badge">Sentimento: ...</span>
+              </div>
+              <p id="aiSummaryText" class="small mb-2 text-muted" style="font-size: 0.9em;"></p>
+              <div id="aiTagsContainer" class="d-flex flex-wrap gap-1"></div>
+            </div>
+
+            <!-- Messages Container (Com rolagem) -->
+            <div
+              class="flex-grow-1"
+              id="spyModalBody"
+              style="overflow-y: auto;"
             >
+              <!-- Messages go here -->
+            </div>
+          </div>
+          <div class="modal-footer bg-light p-2 d-flex flex-column gap-1">
+            <div id="spyWhisperContainer" class="w-100 d-flex gap-2 align-items-center">
+              <span class="badge bg-warning text-dark px-2 py-1 flex-shrink-0"><i class="bi bi-lock-fill"></i> Sussurrar</span>
+              <input type="text" id="spyWhisperInput" class="form-control form-control-sm" placeholder="Enviar orientação privada para o atendente..." onkeydown="if(event.key==='Enter') sendSpyWhisper()" />
+              <button class="btn btn-warning btn-sm px-3 fw-bold flex-shrink-0" onclick="sendSpyWhisper()">
+                <i class="bi bi-send-fill"></i> Enviar
+              </button>
+            </div>
+            <small class="text-muted text-center" style="font-size: 0.72rem;">
+              <i class="bi bi-shield-lock"></i> O sussurro é visível apenas para os atendentes/supervisores. O cliente no WhatsApp não recebe.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CREATE CUSTOM CHART MODAL -->
+    <div class="modal fade" id="createChartModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-bar-chart-line-fill text-primary"></i> Criar Gráfico Customizado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="createChartForm" onsubmit="handleCreateChart(event)">
+              <!-- Chart Title -->
+              <div class="mb-3">
+                <label class="form-label fw-bold">Título do Gráfico *</label>
+                <input type="text" id="chartTitleInput" class="form-control" placeholder="Ex: Status dos Atendimentos" required />
+              </div>
+
+              <!-- Metric selection -->
+              <div class="mb-3">
+                <label class="form-label fw-bold">Métrica / Fonte de Dados *</label>
+                <select id="chartMetricSelect" class="form-select" required>
+                  <option value="chatsByStatus">Atendimentos por Status (BOT, Fila, Atendimento, etc)</option>
+                  <option value="agentsByStatus">Agentes por Status de Trabalho (Online, Pausa, Offline)</option>
+                  <option value="agentsBySkill">Agentes por Departamento / Skill</option>
+                  <option value="chatsByChannel">Atendimentos por Canal (WhatsApp)</option>
+                  <option value="chatsBySentiment">Satisfação de Clientes (Sentimento de IA)</option>
+                  <option value="chatsByDisposition">Motivos de Fechamento (Disposição)</option>
+                  <option value="chatsByHour">Volumetria de Atendimentos (Últimas 24h)</option>
+                  <option value="agentProductivity">Produtividade por Agente (Leaderboard)</option>
+                </select>
+              </div>
+
+              <!-- Chart Type selection -->
+              <div class="mb-3">
+                <label class="form-label fw-bold">Tipo de Gráfico *</label>
+                <select id="chartTypeSelect" class="form-select" required>
+                  <option value="pie">Pizza (Pie)</option>
+                  <option value="bar">Barra (Bar)</option>
+                  <option value="doughnut">Rosca (Doughnut)</option>
+                  <option value="line">Linha (Line)</option>
+                </select>
+              </div>
+
+              <!-- Color Scheme selection -->
+              <div class="mb-3">
+                <label class="form-label fw-bold">Esquema de Cores *</label>
+                <select id="chartColorsSelect" class="form-select" required>
+                  <option value="classic">Clássico (Azul, Verde, Vermelho, Amarelo)</option>
+                  <option value="modern">Moderno (Roxo, Rosa, Ciano, Turquesa)</option>
+                  <option value="warm">Quente (Laranja, Amarelo, Coral, Pêssego)</option>
+                  <option value="cool">Frio (Azul Escuro, Verde Água, Ciano, Cinza)</option>
+                </select>
+              </div>
+
+              <div class="modal-footer px-0 pb-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Gerar Gráfico</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- AUDIT CHAT MODAL -->
+    <div class="modal fade" id="auditChatModal" tabindex="-1">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title"><i class="bi bi-shield-check text-primary"></i> Auditoria de Conversa</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="container-fluid">
+              <div class="row">
+                <!-- Chat Messages Viewport -->
+                <div class="col-md-8 border-end bg-light p-3" style="height: 600px; display: flex; flex-direction: column;">
+                  <div class="fw-bold mb-2 pb-2 border-bottom"><i class="bi bi-chat-left-text"></i> Histórico de Mensagens</div>
+                  <div id="auditChatMessages" class="flex-grow-1 overflow-auto p-2" style="background: #efeae2; border-radius: 8px;">
+                    <!-- Message bubbles load here -->
+                  </div>
+                </div>
+
+                <!-- Chat Metadata Sidebar -->
+                <div class="col-md-4 p-3 style-sidebar" style="height: 600px; overflow-y: auto;">
+                  <div class="fw-bold mb-3 pb-2 border-bottom"><i class="bi bi-info-circle"></i> Detalhes da Sessão</div>
+                  
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Cliente</label>
+                    <div id="auditMetaClient" class="fw-bold">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Telefone</label>
+                    <div id="auditMetaPhone" class="fw-bold">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Atendente</label>
+                    <div id="auditMetaAgent" class="fw-bold">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Data de Início</label>
+                    <div id="auditMetaStart" class="small">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Data de Encerramento</label>
+                    <div id="auditMetaEnd" class="small">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Desfecho (Disposição)</label>
+                    <div id="auditMetaDisposition" class="badge bg-secondary">-</div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="small text-muted fw-bold mb-0">Observações de Fechamento</label>
+                    <div id="auditMetaNotes" class="bg-light p-2 rounded small text-secondary" style="white-space: pre-wrap;">-</div>
+                  </div>
+
+                  <!-- AI Analysis Card -->
+                  <div class="card border-info mt-4" id="auditMetaAiCard" style="display: none;">
+                    <div class="card-header bg-info text-white fw-bold py-2 small d-flex justify-content-between align-items-center">
+                      <span><i class="bi bi-robot"></i> Análise de IA</span>
+                      <span id="auditMetaAiSentiment" class="badge">...</span>
+                    </div>
+                    <div class="card-body p-2 bg-light">
+                      <div class="mb-2">
+                        <label class="small text-muted fw-bold mb-0">Resumo</label>
+                        <div id="auditMetaAiSummary" class="small text-secondary">-</div>
+                      </div>
+                      <div>
+                        <label class="small text-muted fw-bold mb-0">Tags</label>
+                        <div id="auditMetaAiTags" class="d-flex flex-wrap gap-1 mt-1"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- NPS Responses Card -->
+                  <div class="card border-primary mt-4">
+                    <div class="card-header bg-primary text-white fw-bold py-2 small">
+                      <i class="bi bi-star"></i> Pesquisa de Satisfação (NPS)
+                    </div>
+                    <div class="card-body p-2 bg-light">
+                      <div id="auditMetaSurvey" class="small">
+                        <!-- Survey responses render here as a table or list -->
+                        <div class="text-muted text-center py-2">Nenhuma pesquisa respondida.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light py-2">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

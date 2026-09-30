@@ -3,16 +3,20 @@ const router = express.Router();
 const AdminController = require('../controllers/AdminController');
 const ConfigurationController = require('../controllers/ConfigurationController');
 const { authenticateToken, authorizeRole } = require('../middleware/authMiddleware');
+const { checkFeature } = require('../middleware/featureGuard');
 const { validateBody } = require('../middleware/validation.middleware');
 const {
   SaveURAsSchema,
   SavePausesSchema,
+  SaveDispositionsSchema,
   CreateAgentSchema,
   UpdateAgentSchema,
   CreateSkillSchema,
-  UpdateSettingsSchema,
-  SaveConfigurationSchema
+  UpdateSettingsSchema
 } = require('../schemas/admin.schemas');
+const { SaveConfigurationSchema } = require('../schemas/configuration.schemas');
+const WebchatController = require('../controllers/WebchatController');
+const { SaveWebchatConnectionSchema } = require('../schemas/webchat.schemas');
 
 // All routes here require Authentication
 router.use(authenticateToken);
@@ -21,10 +25,11 @@ router.use(authenticateToken);
 router.get('/config', AdminController.getConfig);
 
 // URAs (Flows) Management
-router.get('/uras', authorizeRole(['OWNER', 'ADMIN']), AdminController.getURAs);
+router.get('/uras', authorizeRole(['OWNER', 'ADMIN']), checkFeature('featureBotBuilder'), AdminController.getURAs);
 router.post(
   '/uras',
   authorizeRole(['OWNER', 'ADMIN']),
+  checkFeature('featureBotBuilder'),
   validateBody(SaveURAsSchema),
   AdminController.saveURAs
 );
@@ -36,6 +41,15 @@ router.post(
   authorizeRole(['OWNER', 'ADMIN']),
   validateBody(SavePausesSchema),
   AdminController.savePauses
+);
+
+// Close Dispositions (Motivos de Encerramento)
+router.get('/dispositions', authorizeRole(['OWNER', 'ADMIN']), AdminController.getDispositions);
+router.post(
+  '/dispositions',
+  authorizeRole(['OWNER', 'ADMIN']),
+  validateBody(SaveDispositionsSchema),
+  AdminController.saveDispositions
 );
 
 // Agents (Admins and Owners can manage agents)
@@ -89,6 +103,32 @@ router.post(
   '/configuration/validate',
   authorizeRole(['OWNER', 'ADMIN', 'SUPER_ADMIN']),
   ConfigurationController.validateConfiguration
+);
+router.delete(
+  '/configuration/:id',
+  authorizeRole(['OWNER', 'ADMIN', 'SUPER_ADMIN']),
+  ConfigurationController.deleteConfiguration
+);
+
+// Webchat Connections Management
+router.get(
+  '/webchat',
+  authorizeRole(['OWNER', 'ADMIN', 'SUPER_ADMIN']),
+  checkFeature('featureWebchat'),
+  WebchatController.getWebchatConnections
+);
+router.post(
+  '/webchat',
+  authorizeRole(['OWNER', 'ADMIN', 'SUPER_ADMIN']),
+  checkFeature('featureWebchat'),
+  validateBody(SaveWebchatConnectionSchema),
+  WebchatController.saveWebchatConnection
+);
+router.delete(
+  '/webchat/:id',
+  authorizeRole(['OWNER', 'ADMIN', 'SUPER_ADMIN']),
+  checkFeature('featureWebchat'),
+  WebchatController.deleteWebchatConnection
 );
 
 module.exports = router;

@@ -9,7 +9,7 @@ class InternalNoteService {
   /**
    * Cria nova nota interna
    */
-  static async create(conversationId, userId, tenantId, content) {
+  static async create(conversationId, userId, tenantId, content, userRole = null) {
     // Verificar se conversa pertence ao tenant
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -20,6 +20,10 @@ class InternalNoteService {
 
     if (!conversation) {
       throw new Error('Conversation not found or access denied');
+    }
+
+    if (userRole === 'AGENT' && conversation.assignedToId !== userId) {
+      throw new Error('Unauthorized: Agent is not assigned to this conversation');
     }
 
     const note = await prisma.internalNote.create({
@@ -52,7 +56,7 @@ class InternalNoteService {
   /**
    * Lista notas de uma conversa
    */
-  static async list(conversationId, tenantId) {
+  static async list(conversationId, tenantId, userId = null, userRole = null) {
     // Verificar se conversa pertence ao tenant
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -63,6 +67,10 @@ class InternalNoteService {
 
     if (!conversation) {
       throw new Error('Conversation not found or access denied');
+    }
+
+    if (userRole === 'AGENT' && conversation.assignedToId !== userId) {
+      throw new Error('Unauthorized: Agent is not assigned to this conversation');
     }
 
     return await prisma.internalNote.findMany({
@@ -132,7 +140,7 @@ class InternalNoteService {
   /**
    * Conta notas de uma conversa
    */
-  static async count(conversationId, tenantId) {
+  static async count(conversationId, tenantId, userId = null, userRole = null) {
     // Verificar se conversa pertence ao tenant
     const conversation = await prisma.conversation.findFirst({
       where: {
@@ -143,6 +151,10 @@ class InternalNoteService {
 
     if (!conversation) {
       throw new Error('Conversation not found or access denied');
+    }
+
+    if (userRole === 'AGENT' && conversation.assignedToId !== userId) {
+      throw new Error('Unauthorized: Agent is not assigned to this conversation');
     }
 
     return await prisma.internalNote.count({

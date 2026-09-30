@@ -10,8 +10,7 @@
  */
 
 const logger = require('../utils/logger');
-const prisma =
-const './database');
+const prisma = require('./database');
 const TransferService = require('./TransferService');
 const QueueService = require('./QueueService');
 const { getIO } = require('./socket');
@@ -59,6 +58,35 @@ class AgentStatusService {
 
     if (!agent) {
       throw new Error('Agente não encontrado');
+    }
+
+    // Se o agente quer ir para OFFLINE ou PAUSED mas possui chats ativos (ASSIGNED ou QUEUED)
+    if (normalizedStatus === 'OFFLINE' || normalizedStatus === 'PAUSED') {
+      const activeChatsCount = agent._count.assignedConversations || 0;
+
+      if (activeChatsCount > 0) {
+        logger.info(`[AgentStatus] ${agent.name} possui ${activeChatsCount} chats ativos. Agendando status pendente: ${normalizedStatus}`);
+        const pendingValue = normalizedStatus === 'PAUSED' ? `PENDING_PAUSE:${reason || ''}` : 'PENDING_OFFLINE';
+        
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            workStatus: 'BUSY',
+            statusReason: pendingValue,
+            lastSeenAt: new Date()
+          }
+        });
+
+        const effectiveTenantId = tenantId || agent.tenantId;
+        this.notifyStatusChange(effectiveTenantId, userId, 'BUSY', pendingValue, agent);
+
+        return {
+          success: true,
+          status: 'BUSY',
+          pendingStatus: normalizedStatus,
+          message: `Você tem ${activeChatsCount} conversas ativas. A mudança para ${normalizedStatus} será aplicada automaticamente ao finalizar todos os atendimentos.`
+        };
+      }
     }
 
     const previousStatus = agent.workStatus;
@@ -193,6 +221,7 @@ class AgentStatusService {
 
     // Emitir para o próprio agente (se conectado)
     io.to(`user:${userId}`).emit('status_updated', {
+      userId,
       status,
       reason,
       timestamp: payload.timestamp
@@ -262,23 +291,23 @@ class AgentStatusService {
     const agents = await prisma.user.findMany({
       where,
       include: {
-        _count: {
-          select: {
-            assignedConversations: {
-              where: { status: { in: ['ASSIGNED', 'QUEUED'] } }
-            }
-          }
-        }
-      },
-      orderBy: {
         assignedConversations: {
-          _count: 'asc' // Menos ocupado primeiro
+          where: { status: { in: ['ASSIGNED', 'QUEUED'] } },
+          select: { initiationType: true }
         }
       }
     });
 
-    // Filtrar por limite de chats
-    return agents.filter((a) => a._count.assignedConversations < a.maxChats);
+    // Filtrar por limite de chats recebidos (inbound)
+    const available = agents.filter((a) => {
+      const receivedCount = a.assignedConversations.filter((c) => c.initiationType === 'INBOUND').length;
+      return receivedCount < (a.maxReceivedChats ?? 5);
+    });
+
+    // Ordenar por total de conversas ativas (menos ocupado primeiro)
+    available.sort((a, b) => a.assignedConversations.length - b.assignedConversations.length);
+
+    return available;
   }
 
   /**
@@ -310,6 +339,8 @@ class AgentStatusService {
         workStatus: true,
         statusReason: true,
         maxChats: true,
+        maxActiveChats: true,
+        maxReceivedChats: true,
         skills: {
           include: {
             skill: {
@@ -320,20 +351,15 @@ class AgentStatusService {
             }
           }
         },
-        _count: {
-          select: {
-            assignedConversations: {
-              where: { status: { in: ['ASSIGNED', 'QUEUED'] } }
-            }
-          }
-        }
-      },
-      orderBy: {
         assignedConversations: {
-          _count: 'asc'
+          where: { status: { in: ['ASSIGNED', 'QUEUED'] } },
+          select: { id: true, initiationType: true }
         }
       }
     });
+
+    // Ordenar por total de conversas ativas (menos ocupado primeiro)
+    agents.sort((a, b) => a.assignedConversations.length - b.assignedConversations.length);
 
     return agents;
   }
@@ -345,7 +371,7 @@ class AgentStatusService {
     const agents = await prisma.user.findMany({
       where: {
         tenantId,
-        role: { in: ['AGENT', 'SUPERVISOR', 'ADMIN'] }
+        role: 'AGENT'
       },
       select: {
         workStatus: true
@@ -431,6 +457,129 @@ class AgentStatusService {
     // Fallback para defaults se estrutura for inesperada
     logger.warn('[AgentStatusService] pauseReasons em formato inesperado:', tenant.pauseReasons);
     return defaultReasons;
+  }
+
+  /**
+   * Configura motivos de encerramento (dispositions) do tenant
+   */
+  static async configureCloseDispositions(tenantId, dispositions) {
+    if (!Array.isArray(dispositions)) {
+      throw new Error('Dispositions deve ser um array');
+    }
+
+    // Validar estrutura
+    dispositions.forEach((d) => {
+      if (!d.label || typeof d.label !== 'string') {
+        throw new Error('Cada disposition deve ter um label (string)');
+      }
+    });
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        closeDispositions: dispositions
+      }
+    });
+
+    return { success: true, dispositions };
+  }
+
+  /**
+   * Busca motivos de encerramento (dispositions) do tenant
+   */
+  static async getCloseDispositions(tenantId) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { closeDispositions: true }
+    });
+
+    const defaultDispositions = [
+      { label: 'Dúvida Sanada' },
+      { label: 'Venda Realizada' },
+      { label: 'Problema Técnico' },
+      { label: 'Não Respondeu' },
+      { label: 'Indesejado' },
+      { label: 'Outros' }
+    ];
+
+    // Se não tem closeDispositions configurado, retorna defaults
+    if (!tenant?.closeDispositions) {
+      return defaultDispositions;
+    }
+
+    // Se closeDispositions é um array, retorna direto
+    if (Array.isArray(tenant.closeDispositions)) {
+      return tenant.closeDispositions;
+    }
+
+    // Se closeDispositions é um objeto com propriedade dispositions (array), retorna dispositions
+    if (tenant.closeDispositions.dispositions && Array.isArray(tenant.closeDispositions.dispositions)) {
+      return tenant.closeDispositions.dispositions;
+    }
+
+    // Fallback para defaults se estrutura for inesperada
+    logger.warn('[AgentStatusService] closeDispositions em formato inesperado:', tenant.closeDispositions);
+    return defaultDispositions;
+  }
+
+  /**
+   * Verifica se o agente possui mudança de status pendente e a aplica se ele não tiver mais conversas ativas.
+   */
+  static async checkAndApplyPendingStatus(userId, tenantId) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          workStatus: true,
+          statusReason: true,
+          name: true,
+          email: true,
+          tenantId: true
+        }
+      });
+
+      if (!user) return;
+
+      const reason = user.statusReason || '';
+      const isPendingPause = reason.startsWith('PENDING_PAUSE:');
+      const isPendingOffline = reason === 'PENDING_OFFLINE';
+
+      if (!isPendingPause && !isPendingOffline) {
+        return; // Sem status pendente
+      }
+
+      // Contar conversas ativas
+      const activeChatsCount = await prisma.conversation.count({
+        where: {
+          assignedToId: userId,
+          status: { in: ['ASSIGNED', 'QUEUED'] }
+        }
+      });
+
+      if (activeChatsCount === 0) {
+        const targetStatus = isPendingPause ? 'PAUSED' : 'OFFLINE';
+        const finalReason = isPendingPause ? reason.replace('PENDING_PAUSE:', '') : 'Todas as conversas finalizadas';
+
+        logger.info(`[AgentStatus] ${user.name} finalizou todas as conversas. Aplicando status pendente: ${targetStatus}.`);
+
+        // Atualiza o status no banco
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            workStatus: targetStatus,
+            statusReason: finalReason,
+            lastSeenAt: new Date()
+          }
+        });
+
+        // Notificar mudança
+        const effectiveTenantId = tenantId || user.tenantId;
+        this.notifyStatusChange(effectiveTenantId, userId, targetStatus, finalReason, user);
+      }
+    } catch (err) {
+      logger.error('[AgentStatus] Erro ao verificar status pendente do agente:', err);
+    }
   }
 }
 

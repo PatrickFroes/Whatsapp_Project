@@ -2,8 +2,12 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+# Adiciona node_modules/.bin ao PATH
+ENV PATH /app/node_modules/.bin:$PATH
+
 # Instala dependências de sistema necessárias para Prisma e OpenSSL
 RUN apt-get update && apt-get install -y \
+    curl \
     openssl \
     ca-certificates \
     python3 \
@@ -13,15 +17,15 @@ RUN apt-get update && apt-get install -y \
 
 # Copia pacotes e instala
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 
 # Copia o código
 COPY . .
 
-# Gera Prisma Client dentro da imagem (schema já copiado)
-RUN npx prisma generate
+# Gera o cliente Prisma
+RUN node node_modules/prisma/build/index.js generate
 
 # Expõe a porta
 EXPOSE 3001
 
-CMD ["node", "server.js"]
+CMD ["node", "--expose-gc", "server.js"]

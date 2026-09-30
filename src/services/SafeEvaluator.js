@@ -82,6 +82,7 @@ class SafeEvaluator {
       const index = tokens.indexOf(token);
       if (
         token.type === 'IDENTIFIER' &&
+        !['and', 'or', 'not'].includes(token.value) &&
         index + 1 < tokens.length &&
         tokens[index + 1].value === '('
       ) {

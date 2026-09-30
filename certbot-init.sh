@@ -3,8 +3,8 @@
 # Script para gerar certificado SSL com Let's Encrypt via Certbot
 # Execute este script no servidor antes de iniciar docker-compose
 
-DOMAIN="dev-saas.amber.com.br"
-EMAIL="seu-email@amber.com.br"  # ALTERE PARA SEU EMAIL
+DOMAIN="broker.amber.com.br"
+EMAIL="admin@amber.com.br"  # ALTERE PARA SEU EMAIL
 
 # Criar diretórios necessários
 mkdir -p certs

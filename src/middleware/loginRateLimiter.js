@@ -20,14 +20,17 @@ const WINDOW_MS = LOGIN_WINDOW_MINUTES * 60 * 1000;
  */
 async function initRedis() {
   // Se já está conectando ou conectado, pular
-  if (redisConnecting || redisClient?.isOpen) return;
-  
+  if (redisConnecting || redisClient?.isOpen) {return;}
+
   redisConnecting = true;
-  
+
   try {
     const redis = require('redis');
-    redisClient = redis.createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const isRediss = redisUrl.startsWith('rediss://');
+
+    const redisOptions = {
+      url: redisUrl,
       socket: {
         reconnectStrategy: (retries) => {
           // Max 5 tentativas, depois desiste (não consome recursos)
@@ -40,19 +43,26 @@ async function initRedis() {
         connectTimeout: 5000,
         keepAlive: 0
       }
-    });
-    
+    };
+
+    if (isRediss) {
+      redisOptions.socket.tls = true;
+      redisOptions.socket.rejectUnauthorized = false;
+    }
+
+    redisClient = redis.createClient(redisOptions);
+
     redisClient.on('error', (err) => {
       if (err.code !== 'ECONNREFUSED') {
         logger.warn('Redis erro:', err.message);
       }
     });
-    
+
     await Promise.race([
       redisClient.connect(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 5000))
     ]);
-    
+
     logger.info('Redis conectado com sucesso');
   } catch (err) {
     logger.debug('Redis não disponível, usando memória:', err.message);
@@ -65,7 +75,7 @@ async function initRedis() {
 /**
  * Gera um device ID único baseado em múltiplos headers
  * Identifica computador/navegador mesmo atrás de NAT/roteador/proxy
- * 
+ *
  * Utiliza:
  * - User-Agent (navegador/SO)
  * - Accept-Language (idioma do sistema)
@@ -78,7 +88,7 @@ function generateDeviceId(req) {
   const acceptLanguage = req.get('accept-language') || 'unknown';
   const acceptEncoding = req.get('accept-encoding') || 'unknown';
   const accept = req.get('accept') || 'unknown';
-  
+
   // Pegar IP real considerando proxies (X-Forwarded-For para container/nginx/lb)
   let clientIp = 'unknown';
   const xForwardedFor = req.get('x-forwarded-for');
@@ -91,26 +101,26 @@ function generateDeviceId(req) {
   } else if (req.socket?.remoteAddress) {
     clientIp = req.socket.remoteAddress;
   }
-  
+
   // Fingerprint mais robusto do device
   const fingerprint = `${userAgent}|${acceptLanguage}|${acceptEncoding}|${accept}|${clientIp}`;
   const deviceId = crypto.createHash('sha256').update(fingerprint).digest('hex').substring(0, 16);
-  
+
   return deviceId;
 }
 
 async function checkLoginAttempts(req, res, next) {
   const deviceId = generateDeviceId(req);
   const key = `login_${deviceId}`; // Removido email do key (não expõe usuários)
-  
+
   try {
     // Lazy connect ao Redis
     if (!redisClient?.isOpen && !redisConnecting && process.env.REDIS_URL) {
       await initRedis();
     }
-    
+
     let attempt = null;
-    
+
     if (redisClient?.isOpen) {
       try {
         const data = await redisClient.get(key);
@@ -122,17 +132,17 @@ async function checkLoginAttempts(req, res, next) {
     } else {
       attempt = loginAttempts.get(key);
     }
-    
+
     if (attempt && attempt.count >= LOGIN_MAX_ATTEMPTS) {
       const timeLeft = Math.ceil((attempt.timestamp + WINDOW_MS - Date.now()) / 1000);
-      
+
       if (timeLeft > 0) {
         logger.warn('Login bloqueado - tentativas excedidas', {
           deviceId,
           attempts: attempt.count,
           retrySeconds: timeLeft
         });
-        
+
         return res.status(429).json({
           error: 'Muitas tentativas de login. Tente novamente mais tarde.',
           retryAfterSeconds: timeLeft
@@ -146,7 +156,7 @@ async function checkLoginAttempts(req, res, next) {
         }
       }
     }
-    
+
     req.deviceId = deviceId;
     next();
   } catch (err) {
@@ -163,15 +173,15 @@ async function checkLoginAttempts(req, res, next) {
  */
 async function recordFailedLogin(email, deviceId) {
   const key = `login_${deviceId}`;
-  
+
   try {
     // Lazy connect ao Redis
     if (!redisClient?.isOpen && !redisConnecting && process.env.REDIS_URL) {
       await initRedis();
     }
-    
+
     let attempt = null;
-    
+
     if (redisClient?.isOpen) {
       try {
         const data = await redisClient.get(key);
@@ -182,7 +192,7 @@ async function recordFailedLogin(email, deviceId) {
     } else {
       attempt = loginAttempts.get(key);
     }
-    
+
     let newAttempt;
     if (attempt) {
       if (Date.now() - attempt.timestamp < WINDOW_MS) {
@@ -194,13 +204,13 @@ async function recordFailedLogin(email, deviceId) {
     } else {
       newAttempt = { count: 1, timestamp: Date.now() };
     }
-    
+
     if (redisClient?.isOpen) {
       await redisClient.setEx(key, Math.ceil(WINDOW_MS / 1000), JSON.stringify(newAttempt)).catch(() => {});
     } else {
       loginAttempts.set(key, newAttempt);
     }
-    
+
     if (newAttempt.count >= LOGIN_MAX_ATTEMPTS) {
       logger.warn('Limite de tentativas atingido', { deviceId });
     }
@@ -215,7 +225,7 @@ async function recordFailedLogin(email, deviceId) {
  */
 async function clearLoginAttempts(email, deviceId) {
   const key = `login_${deviceId}`;
-  
+
   try {
     if (redisClient?.isOpen) {
       await redisClient.del(key).catch(() => {});
@@ -236,14 +246,14 @@ setInterval(() => {
   if (!redisClient?.isOpen && loginAttempts.size > 0) {
     const now = Date.now();
     let cleaned = 0;
-    
+
     for (const [key, attempt] of loginAttempts.entries()) {
       if (now - attempt.timestamp > WINDOW_MS) {
         loginAttempts.delete(key);
         cleaned++;
       }
     }
-    
+
     if (cleaned > 0) {
       logger.debug('Limpeza de login attempts', { removed: cleaned, remaining: loginAttempts.size });
     }

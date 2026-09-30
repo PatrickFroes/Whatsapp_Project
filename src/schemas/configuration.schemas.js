@@ -9,6 +9,9 @@ const z = require('zod');
 // Mas se vêm preenchidos, devem ser válidos
 // Pelo menos UM campo de credencial deve ser fornecido
 const SaveConfigurationSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Name cannot be empty').optional(),
+  status: z.enum(['CONNECTED', 'ERROR', 'DISCONNECTED']).optional(),
   phoneNumberId: z
     .union([
       z
@@ -42,10 +45,21 @@ const SaveConfigurationSchema = z.object({
       z.null(),
       z.undefined()
     ])
+    .optional(),
+
+  wabaId: z
+    .union([
+      z
+        .string()
+        .min(1, 'WABA ID cannot be empty')
+        .regex(/^\d+$/, 'WABA ID must contain only digits'),
+      z.null(),
+      z.undefined()
+    ])
     .optional()
 })
 .refine(
-  (data) => data.phoneNumberId || data.whatsappToken || data.metaAppSecret || data.verifyToken,
+  (data) => data.phoneNumberId || data.whatsappToken || data.metaAppSecret || data.verifyToken || data.wabaId,
   { message: 'Must provide at least one credential field' }
 );
 
@@ -65,6 +79,7 @@ const ConfigurationResponseSchema = z.object({
     verifyToken: z.boolean(),
     whatsappToken: z.boolean(),
     metaAppSecret: z.boolean(),
+    wabaId: z.boolean(),
     allRequired: z.boolean()
   }),
   updatedAt: z.date().optional(),

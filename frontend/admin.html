@@ -17,15 +17,12 @@
       href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
       rel="stylesheet"
     />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="css/amberfy_theme.css?v=1.1" />
 
     <style>
       body {
-        font-family: 'Roboto', sans-serif;
-        background-color: #f4f6f9;
+        font-family: var(--font-family-base);
+        background-color: var(--color-bg-main);
         height: 100vh;
         overflow: hidden;
       }
@@ -36,7 +33,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: #ffffff;
+        background: var(--color-bg-card);
         z-index: 9999;
         display: flex;
         flex-direction: column;
@@ -44,40 +41,98 @@
         justify-content: center;
       }
 
+      /* Sidebar Premium */
       .sidebar {
-        width: 280px;
-        background: #343a40;
+        width: 260px;
+        background: linear-gradient(180deg, #1c1c1c 0%, #2e2e2e 100%);
         color: #fff;
         height: 100vh;
         display: flex;
         flex-direction: column;
-        transition: all 0.3s;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow-x: hidden;
+        white-space: nowrap;
+        box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
       }
+
+      .sidebar.collapsed {
+        width: 70px;
+      }
+      .sidebar.collapsed .nav-text {
+        display: none;
+      }
+      .sidebar.collapsed .sidebar-header {
+        justify-content: center;
+        padding: 24px 0;
+      }
+      .sidebar.collapsed .nav-link {
+        justify-content: center;
+        padding: 14px 0;
+        border-left-width: 4px;
+      }
+      .sidebar.collapsed .nav-link i {
+        margin-right: 0;
+        font-size: 1.25rem;
+      }
+      .sidebar.collapsed .mt-auto {
+        padding: 15px 10px !important;
+        text-align: center;
+      }
+      .sidebar.collapsed .mt-auto button {
+        width: 40px !important;
+        height: 40px !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50% !important;
+        padding: 0 !important;
+      }
+      .sidebar.collapsed .mt-auto button i {
+        margin-right: 0 !important;
+        font-size: 1.15rem;
+      }
+      
       .sidebar-header {
-        padding: 20px;
-        background: rgba(0, 0, 0, 0.1);
-        font-weight: bold;
-        font-size: 1.2rem;
+        padding: 24px 20px;
+        background: rgba(0, 0, 0, 0.15);
+        font-weight: 700;
+        font-size: 1.15rem;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
+        letter-spacing: 0.03em;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
+      
       .nav-link {
-        color: rgba(255, 255, 255, 0.8);
-        padding: 12px 20px;
+        color: rgba(255, 255, 255, 0.65);
+        padding: 14px 20px;
         border-left: 4px solid transparent;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        font-weight: 500;
+        transition: all 0.2s ease;
       }
-      .nav-link:hover,
-      .nav-link.active {
+      
+      .nav-link:hover {
         color: #fff;
         background: rgba(255, 255, 255, 0.05);
-        border-left-color: #0d6efd;
       }
+      
+      .nav-link.active {
+        color: #fff;
+        background: rgba(1, 116, 94, 0.15);
+        border-left-color: var(--color-secondary);
+        font-weight: 600;
+      }
+      
       .nav-link i {
-        margin-right: 10px;
+        margin-right: 12px;
         width: 20px;
         text-align: center;
+        font-size: 1.15rem;
       }
 
       .main-wrapper {
@@ -87,131 +142,281 @@
         height: 100vh;
         overflow: hidden;
       }
+      
+      /* Topbar clean tech glassmorphism */
       .topbar {
-        height: 60px;
-        background: #fff;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        height: 65px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(1, 116, 94, 0.08);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 20px;
+        padding: 0 24px;
+        z-index: 100;
       }
+      
       .content-area {
         flex: 1;
-        padding: 20px;
+        padding: 24px;
         overflow-y: auto;
+        background-color: #f8fafc;
       }
 
+      /* Cards Premium */
       .card-custom {
-        background: #fff;
+        background: var(--color-bg-card);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px -2px rgba(1, 116, 94, 0.04), 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+        border: 1px solid rgba(1, 116, 94, 0.08);
+        margin-bottom: 24px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      
+      .card-custom:hover {
+        box-shadow: 0 10px 25px -5px rgba(1, 116, 94, 0.08), 0 8px 16px -6px rgba(0, 0, 0, 0.03);
+      }
+
+      /* Custom Forms & Inputs */
+      .form-control, .form-select {
         border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #cbd5e1;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        transition: all 0.15s ease-in-out;
+      }
+      .form-control:focus, .form-select:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(1, 116, 94, 0.15);
+      }
+      
+      /* Botões Modernos com Gradientes */
+      .btn {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 8px 16px;
+        font-size: 0.88rem;
+        transition: all 0.2s ease;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
         border: none;
-        margin-bottom: 20px;
+        box-shadow: 0 4px 10px rgba(1, 116, 94, 0.15);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(1, 116, 94, 0.25);
+        background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
+      }
+      .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border: none;
+        color: #fff;
+      }
+      .btn-success:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+      }
+      .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border: none;
+        color: #fff;
+      }
+      .btn-danger:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
       }
 
-      .tree ul {
-        padding-top: 20px;
-        position: relative;
-        transition: all 0.5s;
-        display: flex;
-        justify-content: center;
+      /* Estilos do Novo Canvas de URA 2.0 (Figma-like) */
+      #ura-canvas-wrapper {
+        user-select: none;
+        background-color: #fafafa !important;
+        background-image: radial-gradient(#e2e8f0 1.5px, transparent 1.5px) !important;
+        background-size: 20px 20px !important;
+        border: 1px solid rgba(1, 116, 94, 0.12) !important;
       }
-      .tree li {
-        float: left;
-        text-align: center;
-        list-style-type: none;
-        position: relative;
-        padding: 20px 5px 0 5px;
-      }
-
-      .tree li::before,
-      .tree li::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 50%;
-        border-top: 2px solid #ccc;
-        width: 50%;
-        height: 20px;
-      }
-      .tree li::after {
-        right: auto;
-        left: 50%;
-        border-left: 2px solid #ccc;
-      }
-      .tree li:only-child::after,
-      .tree li:only-child::before {
-        display: none;
-      }
-      .tree li:only-child {
-        padding-top: 0;
-      }
-      .tree li:first-child::before,
-      .tree li:last-child::after {
-        border: 0 none;
-      }
-      .tree li:last-child::before {
-        border-right: 2px solid #ccc;
-        border-radius: 0 5px 0 0;
-      }
-      .tree li:first-child::after {
-        border-radius: 5px 0 0 0;
-      }
-      .tree ul ul::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 50%;
-        border-left: 2px solid #ccc;
-        width: 0;
-        height: 20px;
-      }
-
+      
       .node-box {
-        background: #fff;
-        border: 1px solid #ddd;
-        padding: 10px 15px;
-        border-radius: 5px;
-        display: inline-block;
-        min-width: 150px;
-        cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        transition: all 0.2s;
+        position: absolute;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        min-width: 190px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+        cursor: default;
+        z-index: 10;
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s ease, box-shadow 0.15s ease;
       }
+      
       .node-box:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-        border-color: #0d6efd;
+        border-color: var(--color-secondary);
+        transform: translateY(-2px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
       }
+      
       .node-box.selected {
-        background-color: #e7f1ff;
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(1, 116, 94, 0.15), 0 20px 25px -5px rgba(1, 116, 94, 0.1);
       }
-      .node-type {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        color: #6c757d;
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
+      
+      .node-header {
+        background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 8px 12px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #1e293b;
+        border-bottom: 1px solid #e2e8f0;
+        border-top-left-radius: 11px;
+        border-top-right-radius: 11px;
+        cursor: move;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
+      
+      .node-body {
+        padding: 12px;
+      }
+      
       .node-id {
+        font-size: 0.68rem;
+        background: #f1f5f9;
+        color: #64748b;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-bottom: 8px;
+        font-family: monospace;
         font-weight: bold;
-        color: #333;
+      }
+
+      /* Portas de Conexão (Anchors) */
+      .node-anchor {
+        width: 12px;
+        height: 12px;
+        background: #94a3b8;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        position: absolute;
+        z-index: 15;
+        cursor: crosshair;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        transition: all 0.15s ease;
+      }
+      
+      .node-anchor:hover {
+        background: var(--color-secondary);
+        transform: scale(1.3);
+        box-shadow: 0 0 0 4px rgba(2, 191, 157, 0.2);
+      }
+      
+      .node-input-anchor {
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      
+      .node-output-anchor {
+        bottom: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #475569;
+      }
+
+      /* Multi-outputs para Menus e Condições */
+      .node-outputs-container {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed #e2e8f0;
+      }
+      
+      .node-branch-output {
+        position: relative;
+        font-size: 0.72rem;
+        padding: 6px 12px;
+        background: #f8fafc;
+        border-radius: 6px;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        cursor: crosshair;
+        font-weight: 600;
+        white-space: nowrap;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.15s ease;
+      }
+      
+      .node-branch-output:hover {
+        background: rgba(2, 191, 157, 0.08);
+        border-color: var(--color-secondary);
+        color: var(--color-primary-hover);
+      }
+      
+      .node-branch-anchor {
+        width: 10px;
+        height: 10px;
+        background: #64748b;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        position: absolute;
+        right: -5px;
+        top: 50%;
+        transform: translateY(-50%);
+        transition: all 0.15s ease;
+      }
+      
+      .node-branch-output:hover .node-branch-anchor {
+        background: var(--color-secondary);
+        transform: translateY(-50%) scale(1.2);
+      }
+
+      /* Custom Scrollbars */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
       }
 
       @media (max-width: 768px) {
         .sidebar {
           position: fixed;
           left: -280px;
+          width: 280px !important;
           z-index: 1050;
           height: 100%;
           box-shadow: 5px 0 15px rgba(0, 0, 0, 0.1);
         }
         .sidebar.active {
           left: 0;
+        }
+        .sidebar .nav-text {
+          display: inline !important;
+        }
+        .sidebar .sidebar-header {
+          justify-content: flex-start !important;
+          padding: 20px !important;
+        }
+        .sidebar .nav-link {
+          text-align: left !important;
+          padding: 12px 20px !important;
+        }
+        .sidebar .nav-link i {
+          margin-right: 10px !important;
         }
         .overlay {
           position: fixed;
@@ -226,6 +431,281 @@
         .overlay.active {
           display: block;
         }
+      }
+
+      /* Custom Input Group (Figma-like unificado) */
+      .custom-input-group {
+        display: flex;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        overflow: hidden;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        width: 100%;
+        max-width: 460px;
+      }
+      
+      .custom-input-group:focus-within {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(1, 116, 94, 0.15);
+      }
+      
+      .custom-input-group .input-icon {
+        padding-left: 14px;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        font-size: 0.95rem;
+      }
+      
+      .custom-input-group .form-control-custom {
+        flex: 1;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        background: transparent;
+        color: #1e293b;
+        outline: none;
+      }
+      
+      .custom-input-group .form-control-custom::placeholder {
+        color: #94a3b8;
+      }
+      
+      .custom-input-group .btn-custom-add {
+        border-radius: 0 !important;
+        border: none !important;
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        color: #fff;
+        padding: 10px 18px;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .custom-input-group .btn-custom-add:hover {
+        background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
+        opacity: 0.95;
+      }
+
+      /* Tabela de Usuários Premium */
+      .table-custom-users {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 8px;
+      }
+      
+      .table-custom-users th {
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        padding: 12px 16px;
+        border-bottom: 2px solid #e2e8f0;
+      }
+      
+      .table-custom-users tbody tr {
+        background: #ffffff;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+      }
+      
+      .table-custom-users tbody tr:hover {
+        background: #f8fafc;
+        transform: scale(1.002);
+        box-shadow: 0 4px 12px rgba(1, 116, 94, 0.04);
+      }
+      
+      .table-custom-users td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+      }
+
+      /* Avatares dos Usuários */
+      .user-avatar-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .user-avatar-circle {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+        box-shadow: 0 2px 5px rgba(1, 116, 94, 0.15);
+      }
+
+      /* Badges de Função/Regra */
+      .badge-role-custom {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-align: center;
+      }
+      
+      .badge-role-owner {
+        background: rgba(99, 102, 241, 0.1);
+        color: #4f46e5;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+      }
+      
+      .badge-role-supervisor {
+        background: rgba(1, 116, 94, 0.1);
+        color: var(--color-primary);
+        border: 1px solid rgba(1, 116, 94, 0.2);
+      }
+      
+      .badge-role-agent {
+        background: rgba(2, 191, 157, 0.1);
+        color: #0d9488;
+        border: 1px solid rgba(2, 191, 157, 0.2);
+      }
+
+      /* Badges de Limite de Chats */
+      .badge-limit {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-right: 6px;
+      }
+      
+      .badge-limit-active {
+        background: rgba(16, 185, 129, 0.08);
+        color: #065f46;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+      }
+      
+      .badge-limit-received {
+        background: rgba(14, 165, 233, 0.08);
+        color: #075985;
+        border: 1px solid rgba(14, 165, 233, 0.2);
+      }
+
+      /* Chips de Departamentos na Tabela */
+      .badge-user-skill {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-right: 4px;
+        margin-bottom: 2px;
+      }
+
+      /* Botões de Ações */
+      .btn-action-edit, .btn-action-delete {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 0.95rem;
+      }
+      
+      .btn-action-edit {
+        color: #475569;
+      }
+      
+      .btn-action-edit:hover {
+        background: rgba(1, 116, 94, 0.05);
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+      
+      .btn-action-delete {
+        color: #dc2626;
+      }
+      
+      .btn-action-delete:hover {
+        background: rgba(239, 68, 68, 0.05);
+        border-color: #f87171;
+        color: #dc2626;
+      }
+
+      /* Cards de Skill/Departamento Modernos */
+      .skill-card {
+        display: inline-flex;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid rgba(1, 116, 94, 0.12);
+        padding: 6px 12px 6px 8px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #1e293b;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+        transition: all 0.2s ease;
+        gap: 8px;
+      }
+      
+      .skill-card:hover {
+        border-color: var(--color-primary);
+        box-shadow: 0 4px 10px rgba(1, 116, 94, 0.08);
+        transform: translateY(-1px);
+      }
+      
+      .skill-card .skill-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        background: rgba(1, 116, 94, 0.08);
+        color: var(--color-primary);
+        border-radius: 50%;
+        font-size: 0.75rem;
+      }
+      
+      .skill-card .skill-name {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      
+      .skill-card .skill-delete-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #94a3b8;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: color 0.15s ease;
+      }
+      
+      .skill-card .skill-delete-btn:hover {
+        color: #ef4444;
       }
     </style>
   </head>
@@ -243,30 +723,40 @@
     <div class="overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
 
     <div class="d-flex w-100 h-100">
-      <nav class="sidebar" id="mainSidebar">
-        <div class="sidebar-header"><i class="bi bi-robot"></i> Broker Admin</div>
+      <nav class="sidebar collapsed" id="mainSidebar">
+        <div class="sidebar-header">
+          <i class="bi bi-robot"></i> <span class="nav-text">Broker Admin</span>
+        </div>
         <div class="nav flex-column mt-3">
           <a class="nav-link active" onclick="navTo('dashboard')">
-            <i class="bi bi-diagram-3"></i> Fluxo URA
+            <i class="bi bi-diagram-3"></i> <span class="nav-text">Fluxo URA</span>
           </a>
-          <a class="nav-link" onclick="navTo('users')"> <i class="bi bi-people"></i> Usuários </a>
+          <a class="nav-link" onclick="navTo('users')">
+            <i class="bi bi-people"></i> <span class="nav-text">Usuários</span>
+          </a>
           <a class="nav-link" onclick="navTo('templates')">
-            <i class="bi bi-file-text"></i> Modelos (HSM)
+            <i class="bi bi-file-text"></i> <span class="nav-text">Modelos (HSM)</span>
+          </a>
+          <a class="nav-link" onclick="navTo('webchat')" id="sidebarWebchatLink">
+            <i class="bi bi-chat-square-dots"></i> <span class="nav-text">Webchat</span>
+          </a>
+          <a class="nav-link" onclick="navTo('telegram')" id="sidebarTelegramLink">
+            <i class="bi bi-telegram text-info"></i> <span class="nav-text">Telegram Bot</span>
           </a>
           <a class="nav-link" onclick="navTo('settings')">
-            <i class="bi bi-gear"></i> Configurações
+            <i class="bi bi-gear"></i> <span class="nav-text">Configurações</span>
           </a>
         </div>
         <div class="mt-auto p-3">
-          <button class="btn btn-outline-light w-100 btn-sm" onclick="logout()">
-            <i class="bi bi-box-arrow-left"></i> Sair
+          <button class="btn btn-outline-light w-100 btn-sm d-flex align-items-center justify-content-center gap-2" onclick="logout()">
+            <i class="bi bi-box-arrow-left"></i> <span class="nav-text">Sair</span>
           </button>
         </div>
       </nav>
 
       <div class="main-wrapper">
         <div class="topbar">
-          <button class="btn btn-link link-dark d-md-none" onclick="toggleSidebar()">
+          <button class="btn btn-link link-dark" onclick="toggleSidebar()">
             <i class="bi bi-list fs-4"></i>
           </button>
           <div class="h5 mb-0 fw-bold text-primary" id="page-title">Editor de Fluxo</div>
@@ -292,6 +782,9 @@
                 <button class="btn btn-outline-danger" onclick="deleteCurrentURA()">
                   <i class="bi bi-trash"></i>
                 </button>
+                <button class="btn btn-outline-info ms-2" onclick="openTimeRoutingModal()">
+                  <i class="bi bi-clock-history"></i> Campanhas por Horário
+                </button>
               </div>
               <div class="col text-md-end">
                 <span id="active-indicator" class="badge bg-secondary me-2">Offline</span>
@@ -304,23 +797,85 @@
               </div>
             </div>
 
-            <div class="row h-100" style="min-height: 600px">
-              <div
-                class="col-lg-8 h-100"
-                style="
-                  overflow: auto;
-                  border: 1px solid #ddd;
-                  background: #fafafa;
-                  border-radius: 8px;
-                "
-              >
-                <div class="tree" id="tree-canvas" style="min-width: 1000px; padding: 50px"></div>
+            <div class="row h-100" style="min-height: 650px">
+              <!-- Barra Lateral de Ferramentas / Nós -->
+              <div class="col-lg-2 d-flex flex-column gap-2" style="border-right: 1px solid #dee2e6; padding-right: 15px;">
+                <div class="fw-bold small text-muted mb-2 text-uppercase"><i class="bi bi-box"></i> Adicionar Blocos</div>
+                
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('text')">
+                  <i class="bi bi-chat-left-text text-secondary"></i> Mensagem
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('menu')">
+                  <i class="bi bi-list-stars text-primary"></i> Menu / Opções
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('collect_data')">
+                  <i class="bi bi-input-cursor-text text-success"></i> Coletar Dados
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('conditional')">
+                  <i class="bi bi-signpost-split text-warning"></i> Condição
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('math_operation')">
+                  <i class="bi bi-calculator text-dark"></i> Matemática
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('transfer')">
+                  <i class="bi bi-headset text-info"></i> Transferir
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('transfer_queue')">
+                  <i class="bi bi-people text-info"></i> Enfileirar
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('switch_flow')">
+                  <i class="bi bi-arrow-left-right text-info"></i> Mudar Fluxo
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('api_call')">
+                  <i class="bi bi-cloud-arrow-up text-primary"></i> Chamada API
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('set_data')">
+                  <i class="bi bi-database text-warning"></i> Set Variável
+                </button>
+                <button class="btn btn-outline-secondary btn-sm text-start py-2" onclick="addNodeToCanvas('end')">
+                  <i class="bi bi-stop-circle text-danger"></i> Encerrar
+                </button>
+
+                <div class="mt-4 border-top pt-2">
+                  <small class="text-muted d-block mb-1" style="font-size:0.72rem">💡 Dica: Dê dois cliques em um nó para apagá-lo, ou use o painel para editá-lo.</small>
+                </div>
               </div>
 
-              <div class="col-lg-4">
-                <div class="card card-custom h-100">
-                  <div class="card-header bg-white fw-bold">Propriedades</div>
-                  <div class="card-body overflow-auto" id="props-panel">
+              <!-- Canvas da URA -->
+              <div
+                class="col-lg-7 h-100 position-relative"
+                id="ura-canvas-wrapper"
+                style="
+                  overflow: auto;
+                  border: 1px solid #dee2e6;
+                  background-color: #fafafa;
+                  background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+                  background-size: 24px 24px;
+                  border-radius: 8px;
+                  min-height: 650px;
+                "
+              >
+                <!-- SVG de Conexões de Fundo -->
+                <svg id="canvas-connections-svg" class="position-absolute w-100 h-100" style="top:0; left:0; pointer-events: none; min-width: 1500px; min-height: 1500px; z-index: 1;">
+                  <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+                    </marker>
+                    <marker id="arrow-active" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M 0 1 L 10 5 L 0 9 z" fill="#005c53" />
+                    </marker>
+                  </defs>
+                </svg>
+
+                <!-- Div onde os nós absolutos serão renderizados -->
+                <div id="tree-canvas" style="position: absolute; top:0; left:0; width: 2000px; height: 2000px; z-index: 5;"></div>
+              </div>
+
+              <!-- Painel de Propriedades -->
+              <div class="col-lg-3">
+                <div class="card card-custom h-100 border shadow-sm">
+                  <div class="card-header bg-light fw-bold py-2"><i class="bi bi-sliders"></i> Propriedades do Bloco</div>
+                  <div class="card-body overflow-auto" id="props-panel" style="max-height: 600px;">
                     <p class="text-muted text-center mt-5">Selecione um nó para editar</p>
                   </div>
                 </div>
@@ -336,12 +891,13 @@
                   Novo Usuário
                 </button>
                 <div class="table-responsive">
-                  <table class="table table-hover align-middle">
-                    <thead class="table-light">
+                  <table class="table-custom-users align-middle">
+                    <thead>
                       <tr>
                         <th>Usuário</th>
                         <th>Regra</th>
                         <th>Departamentos</th>
+                        <th>Limites (Ativos/Recebidos)</th>
                         <th>Ações</th>
                       </tr>
                     </thead>
@@ -353,17 +909,22 @@
 
             <div class="card card-custom mt-4">
               <div class="card-body">
-                <h5 class="card-title">Departamentos (Skills)</h5>
-                <div class="input-group mb-3" style="max-width: 400px">
+                <h5 class="card-title mb-3"><i class="bi bi-briefcase text-primary me-2"></i> Departamentos (Skills)</h5>
+                <div class="custom-input-group mb-4">
+                  <span class="input-icon">
+                    <i class="bi bi-tag"></i>
+                  </span>
                   <input
                     type="text"
                     id="newSkillInput"
-                    class="form-control"
-                    placeholder="Novo departamento..."
+                    class="form-control-custom"
+                    placeholder="Novo departamento (ex: Vendas, Suporte)"
                   />
-                  <button class="btn btn-outline-primary" onclick="addSkill()">Adicionar</button>
+                  <button class="btn-custom-add" onclick="addSkill()">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
                 </div>
-                <div id="skills-list" class="d-flex flex-wrap gap-2"></div>
+                <div id="skills-list" class="d-flex flex-wrap gap-3"></div>
               </div>
             </div>
 
@@ -391,6 +952,32 @@
                 </button>
                 <div class="mt-3 text-end">
                   <button class="btn btn-primary" onclick="savePauses()">Salvar Pausas</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-custom mt-4">
+              <div class="card-body">
+                <h5 class="card-title">Motivos de Encerramento (Tabulação)</h5>
+                <p class="text-muted small">
+                  Defina os motivos de encerramento disponíveis para os agentes tabularem ao fechar um chat.
+                </p>
+                <div class="table-responsive">
+                  <table class="table table-sm table-borderless">
+                    <thead>
+                      <tr>
+                        <th>Motivo</th>
+                        <th style="width: 50px"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="dispositions-table-body"></tbody>
+                  </table>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" onclick="addDispositionRow()">
+                  + Adicionar Motivo
+                </button>
+                <div class="mt-3 text-end">
+                  <button class="btn btn-primary" onclick="saveDispositions()">Salvar Encerramentos</button>
                 </div>
               </div>
             </div>
@@ -432,150 +1019,328 @@
 
           <div id="view-settings" class="view-section d-none">
             <div style="max-width: 900px">
-              <h4 class="mb-4">⚙️ Configurações de API WhatsApp</h4>
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0">⚙️ Conexões WhatsApp API</h4>
+                <button class="btn btn-primary btn-sm" onclick="showNewConnectionModal()">
+                  <i class="bi bi-plus-circle"></i> Nova Conexão
+                </button>
+              </div>
 
-              <!-- Status Card -->
-              <div class="card card-custom mb-4 border-left-warning">
+              <!-- Connections List Card -->
+              <div class="card card-custom">
                 <div class="card-body">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6>Status da Configuração</h6>
-                      <p id="configStatus" class="mb-0 fs-5" style="color: #dc3545">
-                        <i class="bi bi-exclamation-circle"></i> Incompleta
-                      </p>
-                    </div>
-                    <button class="btn btn-sm btn-outline-primary" onclick="validateConfig()">
-                      <i class="bi bi-check-circle"></i> Validar
-                    </button>
+                  <p class="text-muted small">
+                    Configure e gerencie múltiplos números de WhatsApp para atendimentos e campanhas neste tenant. Cada conexão pode ser validada individualmente.
+                  </p>
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Nome da Linha</th>
+                          <th>Phone Number ID</th>
+                          <th>WABA ID</th>
+                          <th>Status</th>
+                          <th class="text-end">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody id="connections-table-body">
+                        <tr>
+                          <td colspan="5" class="text-center text-muted py-4">Carregando conexões...</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
 
-              <!-- Configuration Form -->
+              <!-- General Settings Card -->
+              <div class="card card-custom mt-4">
+                <div class="card-header bg-white fw-bold"><i class="bi bi-gear"></i> Configurações Gerais do Tenant</div>
+                <div class="card-body">
+                  <form id="generalSettingsForm" onsubmit="saveGeneralSettings(event)">
+                    <div class="row align-items-center mb-3">
+                      <label class="col-md-4 form-label fw-bold mb-0">Tempo Limite de Inatividade (Inbound)</label>
+                      <div class="col-md-4">
+                        <div class="input-group">
+                          <input type="number" id="inboundTimeoutInput" class="form-control" min="1" required />
+                          <span class="input-group-text">minutos</span>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">Conversas iniciadas pelo cliente expiram se ficarem inativas por este período.</small>
+                      </div>
+                    </div>
+                    <!-- NPS Survey Config -->
+                    <div class="row align-items-center mb-3 border-top pt-3">
+                      <label class="col-md-4 form-label fw-bold mb-0">Pesquisa de Satisfação (NPS)</label>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch mb-2">
+                          <input class="form-check-input" type="checkbox" id="surveyEnabledInput" onchange="toggleSurveyFlowSelect()" />
+                          <label class="form-check-label" for="surveyEnabledInput">Ativar Pesquisa de Satisfação</label>
+                        </div>
+                        <select id="surveyFlowSelect" class="form-select form-select-sm" disabled>
+                          <option value="">Selecione um fluxo de pesquisa...</option>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">Quando o agente encerra a conversa, o cliente é direcionado para o fluxo da pesquisa selecionada.</small>
+                      </div>
+                    </div>
+                    <!-- Alerta de Fila de Espera (Queue Alert) -->
+                    <div class="row align-items-center mb-3 border-top pt-3" id="queueAlertConfigContainer">
+                      <label class="col-md-4 form-label fw-bold mb-0">Alerta de Tempo na Fila (Fila de Espera)</label>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch mb-2" id="queueAlertSwitchWrapper">
+                          <input class="form-check-input" type="checkbox" id="queueAlertEnabledInput" onchange="toggleQueueAlertFields()" />
+                          <label class="form-check-label" for="queueAlertEnabledInput">Ativar Alertas de Fila</label>
+                        </div>
+                        
+                        <div id="queueAlertFields" style="display: none;">
+                          <div class="mb-2">
+                            <label class="form-label small mb-1 fw-semibold">Tempo Máximo de Espera:</label>
+                            <div class="input-group input-group-sm">
+                              <input type="number" id="queueAlertWaitInput" class="form-control" min="1" value="10" />
+                              <span class="input-group-text">minutos</span>
+                            </div>
+                          </div>
+
+                          <div class="mb-2">
+                            <label class="form-label small mb-1 fw-semibold">Tipo de Envio:</label>
+                            <select id="queueAlertTypeSelect" class="form-select form-select-sm" onchange="updateQueueAlertPlaceholder()">
+                              <option value="EMAIL">E-mail (SMTP)</option>
+                              <option value="WEBHOOK">Webhook (POST HTTP)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label id="queueAlertTargetLabel" class="form-label small mb-1 fw-semibold">Destinatário (E-mail):</label>
+                            <input type="text" id="queueAlertTargetInput" class="form-control form-control-sm" placeholder="ex: alerta@empresa.com" />
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">Envia uma notificação externa para o e-mail ou webhook configurado assim que uma conversa entrar no status QUEUED (fila de espera) por mais tempo que o programado.</small>
+                      </div>
+                    </div>
+                    <!-- Webhook de Encerramento de Conversa (CRM) -->
+                    <div class="row align-items-center mb-3 border-top pt-3" id="closeWebhookConfigContainer">
+                      <label class="col-md-4 form-label fw-bold mb-0">Webhook de Encerramento de Chat (Integração CRM)</label>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch mb-2" id="closeWebhookSwitchWrapper">
+                          <input class="form-check-input" type="checkbox" id="closeWebhookEnabledInput" onchange="toggleCloseWebhookFields()" />
+                          <label class="form-check-label" for="closeWebhookEnabledInput">Ativar Webhook no Encerramento</label>
+                        </div>
+                        
+                        <div id="closeWebhookFields" style="display: none;">
+                          <div class="mb-2">
+                            <label class="form-label small mb-1 fw-semibold">URL do CRM (POST HTTP):</label>
+                            <input type="url" id="closeWebhookUrlInput" class="form-control form-control-sm" placeholder="ex: https://api.crm.com/v1/webhook" />
+                          </div>
+
+                          <div>
+                            <label class="form-label small mb-1 fw-semibold">Chave de API / Token Secreto (API-KEY):</label>
+                            <input type="text" id="closeWebhookTokenInput" class="form-control form-control-sm" placeholder="Enviado nos headers API-KEY e Authorization" />
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">Envia o histórico completo de mensagens do chat estruturado em JSON para um CRM ou endpoint externo assim que a conversa for resolvida/fechada, permitindo análise por IAs externas.</small>
+                      </div>
+                    </div>
+                    <div>
+                      <button type="submit" class="btn btn-primary btn-sm">Salvar Configurações</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="view-webchat" class="view-section d-none">
+            <div style="max-width: 900px">
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0">💬 Conexões Webchat</h4>
+                <button class="btn btn-primary btn-sm" onclick="showNewWebchatConnectionModal()">
+                  <i class="bi bi-plus-circle"></i> Nova Conexão Webchat
+                </button>
+              </div>
+
               <div class="card card-custom">
                 <div class="card-body">
-                  <form onsubmit="handleConfigSave(event)">
+                  <p class="text-muted small">
+                    Crie e gerencie canais de atendimento via Webchat para seus sites. Cada canal possui um snippet de script único e pode rodar uma URA exclusiva ou respeitar o roteamento por horários.
+                  </p>
+                  <div class="table-responsive">
+                    <table class="table-custom-users align-middle">
+                      <thead>
+                        <tr>
+                          <th>Nome do Canal</th>
+                          <th>Token de Integração</th>
+                          <th>Fluxo URA</th>
+                          <th>Status</th>
+                          <th class="text-end">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody id="webchat-connections-table-body">
+                        <tr>
+                          <td colspan="5" class="text-center text-muted py-4">Carregando conexões...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TELEGRAM BOT VIEW -->
+          <div id="view-telegram" class="view-section d-none">
+            <div style="max-width: 900px">
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0 text-dark d-flex align-items-center gap-2">
+                  <i class="bi bi-telegram text-info"></i> Conexão Telegram Bot
+                </h4>
+              </div>
+
+              <div class="card card-custom">
+                <div class="card-body p-4">
+                  <p class="text-muted small">
+                    Conecte bots do Telegram para receber mensagens diretamente no Broker CRM e integrá-las à sua URA ou equipe de atendimento.
+                  </p>
+
+                  <!-- Status Card -->
+                  <div id="telegramStatusCard" class="alert alert-secondary d-flex align-items-center justify-content-between mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                      <div id="telegramStatusIcon" class="fs-2 text-secondary">
+                        <i class="bi bi-robot"></i>
+                      </div>
+                      <div>
+                        <h6 class="mb-0 fw-bold" id="telegramBotTitle">Nenhum bot conectado</h6>
+                        <small class="text-muted" id="telegramBotSubtitle">Insira o token gerado pelo @BotFather abaixo</small>
+                      </div>
+                    </div>
+                    <div id="telegramStatusActions">
+                      <button class="btn btn-outline-danger btn-sm d-none" id="btnDisconnectTelegram" onclick="disconnectTelegram()">
+                        <i class="bi bi-plug"></i> Desconectar
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Form Card -->
+                  <form id="telegramConfigForm" onsubmit="saveTelegramConfig(event)" class="mt-3">
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Token do Bot (BotFather) <span class="text-danger">*</span></label>
+                      <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-key-fill text-muted"></i></span>
+                        <input type="text" id="telegramBotToken" class="form-control font-monospace" placeholder="Ex: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz" required />
+                      </div>
+                      <small class="text-muted">
+                        Obtenha o token criando um bot no Telegram com <a href="https://t.me/BotFather" target="_blank" class="text-decoration-none">@BotFather</a>.
+                      </small>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Fluxo Inicial (URA / Bot)</label>
+                        <select id="telegramFlowId" class="form-select">
+                          <option value="">Padrão da Empresa (Primeiro Fluxo Ativo)</option>
+                        </select>
+                        <small class="text-muted">Fluxo de autoatendimento disparado quando o cliente iniciar a conversa.</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Mensagem de Boas-Vindas (Opcional)</label>
+                        <input type="text" id="telegramWelcomeMessage" class="form-control" placeholder="Ex: Olá! Seja bem-vindo ao nosso suporte." />
+                      </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                      <button type="submit" class="btn btn-primary px-4" id="btnSaveTelegram">
+                        <i class="bi bi-check2-circle"></i> Salvar e Conectar Bot
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connection Modal (Add/Edit) -->
+          <div class="modal fade" id="connectionModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="connectionModalTitle"><i class="bi bi-telephone"></i> Conexão WhatsApp</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <form id="connectionForm" onsubmit="handleConnectionSave(event)">
+                    <input type="hidden" id="connId" />
+                    
+                    <!-- Connection Name -->
+                    <div class="mb-3">
+                      <label class="form-label"><i class="bi bi-tag"></i> Nome da Linha / Conexão *</label>
+                      <input type="text" class="form-control" id="connName" placeholder="Ex: Suporte, Comercial" required />
+                      <small class="text-muted">Um nome descritivo para identificar este número.</small>
+                    </div>
+
                     <!-- Phone Number ID -->
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label">
-                          <i class="bi bi-telephone"></i> Phone Number ID *
-                        </label>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-link"
-                          onclick="openModal('phoneIdModal')"
-                        >
+                        <label class="form-label"><i class="bi bi-telephone"></i> Phone Number ID *</label>
+                        <button type="button" class="btn btn-sm btn-link p-0" onclick="openModal('phoneIdModal')">
                           <i class="bi bi-question-circle"></i> Ajuda
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="configPhoneNumberId"
-                        placeholder="Ex: 958814803984993"
-                        required
-                      />
-                      <small class="text-muted"
-                        >ID numérico do seu número de telefone WhatsApp</small
-                      >
+                      <input type="text" class="form-control" id="connPhoneNumberId" placeholder="Ex: 958814803984993" required />
+                      <small class="text-muted">ID numérico do seu número de telefone WhatsApp (apenas dígitos).</small>
+                    </div>
+
+                    <!-- WABA ID -->
+                    <div class="mb-3">
+                      <label class="form-label"><i class="bi bi-folder"></i> WABA ID (Opcional)</label>
+                      <input type="text" class="form-control" id="connWabaId" placeholder="Ex: 102290129340398" />
+                      <small class="text-muted">ID numérico da conta do WhatsApp Business.</small>
                     </div>
 
                     <!-- Verify Token -->
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label">
-                          <i class="bi bi-shield-check"></i> Verify Token *
-                        </label>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-link"
-                          onclick="openModal('verifyTokenModal')"
-                        >
+                        <label class="form-label"><i class="bi bi-shield-check"></i> Verify Token *</label>
+                        <button type="button" class="btn btn-sm btn-link p-0" onclick="openModal('verifyTokenModal')">
                           <i class="bi bi-question-circle"></i> Ajuda
                         </button>
                       </div>
-                      <input
-                        type="password"
-                        class="form-control"
-                        id="configVerifyToken"
-                        placeholder="Sua senha segura"
-                        required
-                      />
-                      <small class="text-muted">Token que você configurou no webhook Meta</small>
+                      <input type="password" class="form-control" id="connVerifyToken" placeholder="Digite para definir / Senha segura" />
+                      <small class="text-muted" id="connVerifyTokenHelp">Token configurado no webhook Meta. Se estiver editando, deixe em branco para não alterar.</small>
                     </div>
 
-                    <!-- WhatsApp Token -->
+                    <!-- WhatsApp Access Token -->
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label">
-                          <i class="bi bi-key"></i> WhatsApp Access Token *
-                        </label>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-link"
-                          onclick="openModal('whatsappTokenModal')"
-                        >
+                        <label class="form-label"><i class="bi bi-key"></i> WhatsApp Access Token *</label>
+                        <button type="button" class="btn btn-sm btn-link p-0" onclick="openModal('whatsappTokenModal')">
                           <i class="bi bi-question-circle"></i> Ajuda
                         </button>
                       </div>
-                      <input
-                        type="password"
-                        class="form-control"
-                        id="configWhatsappToken"
-                        placeholder="Token de acesso permanente"
-                        required
-                      />
-                      <small class="text-muted"
-                        >Token de acesso pessoal ou de sistema de sua app Meta</small
-                      >
+                      <input type="password" class="form-control" id="connWhatsappToken" placeholder="Digite para definir / Token de acesso permanente" />
+                      <small class="text-muted" id="connWhatsappTokenHelp">Token de acesso da app Meta. Se estiver editando, deixe em branco para não alterar.</small>
                     </div>
 
                     <!-- Meta App Secret -->
                     <div class="mb-3">
                       <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label">
-                          <i class="bi bi-lock"></i> Meta App Secret *
-                        </label>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-link"
-                          onclick="openModal('metaSecretModal')"
-                        >
+                        <label class="form-label"><i class="bi bi-lock"></i> Meta App Secret *</label>
+                        <button type="button" class="btn btn-sm btn-link p-0" onclick="openModal('metaSecretModal')">
                           <i class="bi bi-question-circle"></i> Ajuda
                         </button>
                       </div>
-                      <input
-                        type="password"
-                        class="form-control"
-                        id="configMetaAppSecret"
-                        placeholder="App Secret de sua app Meta"
-                        required
-                      />
-                      <small class="text-muted"
-                        >Usado para validar assinatura HMAC dos webhooks</small
-                      >
+                      <input type="password" class="form-control" id="connMetaAppSecret" placeholder="Digite para definir / App Secret" />
+                      <small class="text-muted" id="connMetaAppSecretHelp">Usado para validar assinaturas HMAC. Se estiver editando, deixe em branco para não alterar.</small>
                     </div>
 
-                    <!-- Note -->
-                    <div class="alert alert-info mt-4" role="alert">
-                      <i class="bi bi-info-circle"></i>
-                      <strong>Informação Importante:</strong> Todos os campos são obrigatórios para
-                      que seus webhooks funcionem com segurança máxima.
-                    </div>
-
-                    <!-- Buttons -->
-                    <div class="d-flex gap-2">
-                      <button type="submit" class="btn btn-primary flex-grow-1" id="savConfigBtn">
-                        <i class="bi bi-save"></i> Salvar Configurações
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary"
-                        onclick="resetConfigForm()"
-                      >
-                        <i class="bi bi-arrow-counterclockwise"></i> Limpar
-                      </button>
+                    <div class="modal-footer px-0 pb-0">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                      <button type="submit" class="btn btn-primary" id="saveConnBtn"><i class="bi bi-save"></i> Salvar Conexão</button>
                     </div>
                   </form>
                 </div>
@@ -830,6 +1595,18 @@ grant_type=client_credentials</code></pre>
                 >Supervisor: Acesso à Mesa de Controle e Monitoramento.</small
               >
             </div>
+            <div class="row mb-3">
+              <div class="col">
+                <label class="form-label">Máx. Chats Ativos</label>
+                <input type="number" id="frmUserMaxActiveChats" class="form-control" min="1" max="100" value="5" />
+                <small class="text-muted">Iniciados por atendente</small>
+              </div>
+              <div class="col">
+                <label class="form-label">Máx. Chats Recebidos</label>
+                <input type="number" id="frmUserMaxReceivedChats" class="form-control" min="1" max="100" value="5" />
+                <small class="text-muted">Iniciados por cliente</small>
+              </div>
+            </div>
             <div class="mb-3" id="containerSkills">
               <label>Departamentos (Skills)</label>
               <div
@@ -842,6 +1619,123 @@ grant_type=client_credentials</code></pre>
           <div class="modal-footer">
             <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
             <button class="btn btn-primary" onclick="saveUser()">Salvar Usuário</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Roteamento por Horário -->
+    <div class="modal fade" id="timeRoutingModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold text-primary"><i class="bi bi-clock-history"></i> Campanhas e Roteamento por Horário</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-check form-switch mb-4 fs-5">
+              <input class="form-check-input" type="checkbox" id="time-routing-enabled" onchange="toggleTimeRoutingUI(this.checked)">
+              <label class="form-check-label fw-bold text-secondary" for="time-routing-enabled">Ativar Roteamento Automático por Horário</label>
+            </div>
+            
+            <div id="time-routing-rules-container" class="d-none">
+              <div class="alert alert-info py-2 px-3 mb-3" style="font-size:0.85rem">
+                <i class="bi bi-info-circle"></i> O sistema direcionará novas conversas automaticamente baseando-se nas regras abaixo. O primeiro intervalo correspondente ao horário do servidor será selecionado. Se nenhum bater, o fluxo padrão configurado no topo será usado.
+              </div>
+
+              <div class="table-responsive">
+                <table class="table align-middle border">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="small fw-bold text-muted">Fluxo de Destino</th>
+                      <th class="small fw-bold text-muted" style="width: 180px;">Hora Inicial</th>
+                      <th class="small fw-bold text-muted" style="width: 180px;">Hora Final</th>
+                      <th class="small fw-bold text-muted text-center" style="width: 80px;">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="time-routing-rules-tbody">
+                    <!-- Regras injetadas dinamicamente via JS -->
+                  </tbody>
+                </table>
+              </div>
+
+              <button class="btn btn-sm btn-outline-primary" onclick="addTimeRoutingRuleRow()">
+                <i class="bi bi-plus-lg"></i> Adicionar Nova Regra
+              </button>
+            </div>
+            
+            <div id="time-routing-disabled-msg" class="text-muted text-center py-4">
+              <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+              O roteamento automático está desligado. O fluxo ativo selecionado no topo será usado permanentemente.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveTimeRoutingConfig()">Salvar Configuração</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Webchat Connection Modal -->
+    <div class="modal fade" id="webchatConnectionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="webchatModalTitle"><i class="bi bi-chat-square-text-fill text-primary"></i> Gerenciar Conexão Webchat</h5>
+            <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="webchatConnectionForm" onsubmit="saveWebchatConnection(event)">
+              <input type="hidden" id="webchatConnectionId" />
+              <div class="mb-3">
+                <label class="form-label fw-bold">Nome do Canal <span class="text-danger">*</span></label>
+                <input type="text" id="webchatName" class="form-control" placeholder="Ex: Chat Principal do Site" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Fluxo URA Associado</label>
+                <select id="webchatFlowId" class="form-select">
+                  <option value="">Roteamento Padrão (Por Horários)</option>
+                </select>
+                <small class="text-muted">Selecione uma URA para rodar permanentemente neste canal, ou deixe em branco para usar as regras de horário.</small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Mensagem de Boas-vindas (Opcional)</label>
+                <textarea id="webchatWelcomeMessage" class="form-control" rows="2" placeholder="Ex: Olá! Seja bem-vindo ao nosso suporte. Como podemos ajudar?"></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">Domínios Permitidos (CORS - Opcional)</label>
+                <input type="text" id="webchatAllowedDomains" class="form-control" placeholder="Ex: site.com, blog.com (separados por vírgula)" />
+                <small class="text-muted">Deixe em branco para permitir qualquer domínio.</small>
+              </div>
+              <div class="modal-footer px-0 pb-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Webchat Snippet Modal -->
+    <div class="modal fade" id="webchatSnippetModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-code-slash text-success"></i> Snippet de Integração do Webchat</h5>
+            <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Copie e cole o código abaixo imediatamente antes da tag de fechamento <code>&lt;/body&gt;</code> do HTML do seu site:</p>
+            <div class="mb-3">
+              <textarea id="webchatSnippetTextarea" class="form-control code-textarea" rows="6" readonly style="font-family: monospace; font-size: 0.88rem; background: #f8fafc; color: #1e293b;"></textarea>
+            </div>
+            <div class="text-end">
+              <button class="btn btn-primary" onclick="copyWebchatSnippet()">
+                <i class="bi bi-clipboard"></i> Copiar Snippet
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -23,6 +23,33 @@ model Tenant {
   updatedAt     DateTime       @updatedAt
   flows         Json?
   pauseReasons  Json?
+  closeDispositions Json?
+  inboundTimeoutMinutes Int            @default(60)
+  maxConcurrentAgents   Int            @default(5)
+  defaultAgentLanguage  String         @default("pt")
+  surveyEnabled         Boolean        @default(false)
+  surveyFlowId          String?
+  queueAlertConfig      Json?
+  closeWebhookConfig    Json?
+
+  // Modulos Quantitativos (Limites Numericos)
+  limitMaxAgents            Int             @default(5)
+  limitMaxSupervisors       Int             @default(1)
+  limitMaxAdmins            Int             @default(1)
+  limitWhatsappConnections  Int             @default(1)
+  limitStorageDays          Int             @default(30)     // 0 = ilimitado
+  limitStorageGb            Float           @default(2.0)    // Limite de midia em GB
+  limitActiveCampaigns      Int             @default(1)
+  limitMonthlyOutboundChats Int             @default(100)
+
+  // Modulos Qualitativos (Ativacoes)
+  featureBotBuilder         Boolean         @default(true)
+  featureSurvey             Boolean         @default(false)
+  featureApiAccess          Boolean         @default(false)
+  featureAiSummary          Boolean         @default(false)
+  featureQueueAlert         Boolean         @default(false)
+  featureCloseWebhook       Boolean         @default(false)
+  featureWebchat            Boolean         @default(false)
 
   // Business Hours Config
   businessHours Json?          // { enabled, schedule: { monday: { start: "09:00", end: "18:00" } }, timezone: "America/Sao_Paulo", offlineMessage: "..." }
@@ -36,7 +63,8 @@ model Tenant {
   campaigns     Campaign[]
   wallet        Wallet?
   quickReplies  QuickReply[]
-  configuration Configuration?
+  configurations Configuration[]
+  webchatConnections WebchatConnection[]
 }
 
 model User {
@@ -46,6 +74,7 @@ model User {
   name                  String
   role                  Role           @default(AGENT)
   workStatus            WorkStatus     @default(OFFLINE)
+  active                Boolean        @default(true)
   lastSeenAt            DateTime?
   tenantId              String
   createdAt             DateTime       @default(now())
@@ -54,6 +83,8 @@ model User {
   
   // Max concurrent chats
   maxChats              Int            @default(5)
+  maxActiveChats        Int            @default(5)
+  maxReceivedChats      Int            @default(5)
   
   assignedConversations Conversation[] @relation("AssignedAgent")
   transfersFrom         ConversationTransfer[] @relation("TransferFrom")
@@ -129,10 +160,23 @@ model Conversation {
   flowState     Json?
   closingNotes  String?
   disposition   String?
+  initiationType String             @default("INBOUND")
+  channel        String             @default("WHATSAPP")
+  whatsappPhoneId String?
+  webchatConnectionId String?
+  campaignId      String?
+  surveyResponses Json?
+  dept            String?
+  aiSummary       String?
+  aiSentiment     String?
+  aiTags          String[]           @default([])
   
   assignedTo    User?              @relation("AssignedAgent", fields: [assignedToId], references: [id])
   contact       Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
   tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign      Campaign?          @relation(fields: [campaignId], references: [id])
+  whatsappConnection Configuration? @relation(fields: [whatsappPhoneId], references: [phoneNumberId])
+  webchatConnection   WebchatConnection? @relation(fields: [webchatConnectionId], references: [id])
   messages      Message[]
   internalNotes InternalNote[]
   transfers     ConversationTransfer[]
@@ -141,6 +185,9 @@ model Conversation {
   @@index([assignedToId])
   @@index([contactId])
   @@index([lastMessageAt])
+  @@index([whatsappPhoneId])
+  @@index([webchatConnectionId])
+  @@index([campaignId])
 }
 
 model Message {
@@ -198,13 +245,21 @@ model Campaign {
   totalTarget  Int       @default(0)
   successCount Int       @default(0)
   failCount    Int       @default(0)
+  whatsappPhoneId String?
   
   tenantId     String
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  whatsappConnection Configuration? @relation(fields: [whatsappPhoneId], references: [phoneNumberId])
   messages     Message[]
+  conversations Conversation[]
+  surveyEnabled Boolean   @default(false)
+  surveyFlowId  String?
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([whatsappPhoneId])
 }
 
 model Wallet {
@@ -295,14 +350,14 @@ model ConversationTransfer {
   id             String       @id @default(uuid())
   conversationId String
   fromUserId     String?      // Null if from BOT/QUEUED
-  toUserId       String
+  toUserId       String?      // Null if transferred to skill/queue (agent TBD)
   reason         String?
   notes          String?
   createdAt      DateTime     @default(now())
   
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   fromUser       User?        @relation("TransferFrom", fields: [fromUserId], references: [id])
-  toUser         User         @relation("TransferTo", fields: [toUserId], references: [id])
+  toUser         User?        @relation("TransferTo", fields: [toUserId], references: [id])
 
   @@index([conversationId])
   @@index([fromUserId])
@@ -314,17 +369,53 @@ model ConversationTransfer {
 // All credentials are REQUIRED and specific to each tenant (no shared/global credentials)
 model Configuration {
   id              String    @id @default(uuid())
-  tenantId        String    @unique
+  tenantId        String
+  name            String    @default("Padrão")
+  status          String    @default("CONNECTED")
   phoneNumberId   String    @unique  // WhatsApp Business Phone Number ID - unique per tenant, identifies webhook source
   verifyToken     String    // Webhook verification token (per-tenant)
   whatsappToken   String    // WhatsApp API access token (permanent, per-tenant)
   metaAppSecret   String    // Meta app secret for HMAC validation (per-tenant)
+  wabaId          String?   // WhatsApp Business Account ID (optional, fallback if query fails)
   updatedBy       String?   // User who made the last update
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations   Conversation[]
+  campaigns       Campaign[]
 
   @@index([tenantId])
   @@index([phoneNumberId])
+}
+
+// UserSession - Tracks active concurrent user sessions per tenant to enforce user limits
+model UserSession {
+  id          String   @id @default(uuid())
+  userId      String
+  tenantId    String
+  role        String
+  token       String   @unique
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([tenantId, role])
+  @@index([updatedAt])
+}
+
+model WebchatConnection {
+  id             String         @id @default(uuid())
+  tenantId       String
+  name           String
+  status         String         @default("CONNECTED")
+  token          String         @unique @default(uuid())
+  welcomeMessage String?
+  allowedDomains String[]       @default([])
+  flowId         String?
+  
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([tenantId])
 }

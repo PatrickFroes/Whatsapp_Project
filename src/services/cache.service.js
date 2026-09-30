@@ -17,14 +17,42 @@ async function initializeRedis() {
   }
 
   try {
-    redisClient = redis.createClient({
+    const redisOptions = {
       host: process.env.REDIS_HOST || 'localhost',
       port: process.env.REDIS_PORT || 6379,
       db: process.env.REDIS_DB || 0,
       password: process.env.REDIS_PASSWORD || undefined,
       connectTimeout: 5000,
-      maxRetriesPerRequest: null
-    });
+      maxRetriesPerRequest: null,
+      socket: {
+        reconnectStrategy: (retries) => {
+          if (retries > 30) {
+            logger.warn('[Cache Redis] Limite de 30 reconexões excedido. Abortando.');
+            return new Error('Redis connection failed');
+          }
+          // Backoff exponencial: 100ms, 200ms, 400ms, 800ms... max 2000ms
+          return Math.min(100 * Math.pow(2, retries - 1), 2000);
+        }
+      }
+    };
+
+    // Suporte a URL e TLS
+    if (process.env.REDIS_URL) {
+      redisOptions.url = process.env.REDIS_URL;
+      delete redisOptions.host;
+      delete redisOptions.port;
+      delete redisOptions.db;
+
+      if (process.env.REDIS_URL.startsWith('rediss://')) {
+        redisOptions.socket.tls = true;
+        redisOptions.socket.rejectUnauthorized = false;
+      }
+    } else if (process.env.REDIS_TLS === 'true') {
+      redisOptions.socket.tls = true;
+      redisOptions.socket.rejectUnauthorized = false;
+    }
+
+    redisClient = redis.createClient(redisOptions);
 
     redisClient.on('error', (err) => {
       logger.error('[Cache] Redis error:', { error: err.message });

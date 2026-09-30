@@ -59,14 +59,14 @@ function maskSensitiveData(data) {
 const logger = {
   debug: (message, ...args) => {
     if (MIN_LEVEL <= LOG_LEVELS.DEBUG) {
-      logger.debug(`[DEBUG] ${message}`, ...args);
+      console.debug(`[DEBUG] ${message}`, ...args);
     }
   },
 
   info: (message, ...args) => {
     if (MIN_LEVEL <= LOG_LEVELS.INFO) {
       const safeMessage = isProduction ? maskSensitiveData(message) : message;
-      logger.debug(
+      console.info(
         `[INFO] ${safeMessage}`,
         ...args.map((a) => (isProduction ? maskSensitiveData(a) : a))
       );
@@ -75,7 +75,7 @@ const logger = {
 
   warn: (message, ...args) => {
     if (MIN_LEVEL <= LOG_LEVELS.WARN) {
-      logger.warn(`[WARN] ${message}`, ...args);
+      console.warn(`[WARN] ${message}`, ...args);
     }
   },
 
@@ -83,9 +83,9 @@ const logger = {
     if (MIN_LEVEL <= LOG_LEVELS.ERROR) {
       // Em produção, não expõe stack traces completos
       if (isProduction) {
-        logger.error(`[ERROR] ${message}`, error ? error.message : '');
+        console.error(`[ERROR] ${message}`, error ? error.message : '');
       } else {
-        logger.error(`[ERROR] ${message}`, error || '');
+        console.error(`[ERROR] ${message}`, error || '');
       }
     }
   },
@@ -93,21 +93,21 @@ const logger = {
   // Log de requisição HTTP (para debugging de APIs)
   http: (method, path, status, duration) => {
     if (!isProduction) {
-      logger.debug(`[HTTP] ${method} ${path} - ${status} (${duration}ms)`);
+      console.debug(`[HTTP] ${method} ${path} - ${status} (${duration}ms)`);
     }
   },
 
   // Log específico para Socket.io
   socket: (event, data) => {
     if (!isProduction) {
-      logger.debug(`[Socket] ${event}`, data ? JSON.stringify(data).substring(0, 100) : '');
+      console.debug(`[Socket] ${event}`, data ? JSON.stringify(data).substring(0, 100) : '');
     }
   },
 
   // Log específico para FlowEngine
   flow: (conversationId, message) => {
     if (!isProduction) {
-      logger.debug(`[FlowEngine] Conv:${conversationId?.substring(0, 8) || '???'} - ${message}`);
+      console.debug(`[FlowEngine] Conv:${conversationId?.substring(0, 8) || '???'} - ${message}`);
     }
   }
 };

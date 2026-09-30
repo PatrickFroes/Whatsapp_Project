@@ -56,11 +56,13 @@ const validateWebhookHmac = async (req, res, next) => {
 
     logger.debug('[Webhook HMAC] Raw body received, parsing payload');
 
-    // 3. Extrair waPhoneId do body para identificar tenant
+    // Extrair waPhoneId e wabaId do body para identificar a conexão
     let waPhoneId;
+    let wabaId;
     try {
       const bodyData = JSON.parse(req.rawBody);
       waPhoneId = bodyData?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+      wabaId = bodyData?.entry?.[0]?.id;
       logger.debug('[Webhook HMAC] Payload parsed successfully');
     } catch (e) {
       logger.warn('[Webhook HMAC] Invalid JSON in webhook body');
@@ -70,26 +72,60 @@ const validateWebhookHmac = async (req, res, next) => {
       });
     }
 
-    if (!waPhoneId) {
-      logger.warn('[Webhook HMAC] Missing phone_number_id in webhook');
+    if (!waPhoneId && !wabaId) {
+      logger.warn('[Webhook HMAC] Missing phone_number_id and wabaId in webhook');
       return res.status(400).json({
         error: 'Invalid webhook structure',
-        details: 'No phone_number_id found in metadata'
+        details: 'No phone_number_id or wabaId found in payload'
       });
     }
 
-    // 4. Buscar Configuration pelo phoneNumberId (identificador único do webhook)
-    const config = await prisma.configuration.findUnique({
-      where: { phoneNumberId: waPhoneId },
-      include: { tenant: true }
-    });
+    const tenantIdParam = req.params.tenantId;
+    let config;
 
-    if (!config || !config.tenant) {
-      logger.warn('[Webhook HMAC] Webhook from unknown phone_number_id - rejected');
-      return res.status(403).json({
-        error: 'Invalid tenant',
-        details: 'Unknown phone_number_id'
+    if (tenantIdParam) {
+      // 3a. Use explicit tenant ID from URL
+      logger.debug(`[Webhook HMAC] Explicit tenantId provided in URL: ${tenantIdParam}`);
+      
+      const whereClause = { tenantId: tenantIdParam };
+      if (waPhoneId) {
+        whereClause.phoneNumberId = waPhoneId;
+      }
+      
+      config = await prisma.configuration.findFirst({
+        where: whereClause,
+        include: { tenant: true }
       });
+
+      if (!config || !config.tenant) {
+        logger.warn(`[Webhook HMAC] Webhook for unknown tenantId/phoneId combination: ${tenantIdParam} / ${waPhoneId || 'N/A'} - rejected`);
+        return res.status(403).json({
+          error: 'Invalid tenant or phone connection',
+          details: 'Unknown tenantId or phone_number_id combination'
+        });
+      }
+    } else {
+      // 3b. Global Webhook: Resolver tenant pelo waPhoneId ou wabaId
+      if (waPhoneId) {
+        config = await prisma.configuration.findUnique({
+          where: { phoneNumberId: waPhoneId },
+          include: { tenant: true }
+        });
+      } else if (wabaId) {
+        // Fallback for WABA-level events that lack phone_number_id
+        config = await prisma.configuration.findFirst({
+          where: { wabaId: wabaId },
+          include: { tenant: true }
+        });
+      }
+
+      if (!config || !config.tenant) {
+        logger.warn(`[Webhook HMAC] Webhook from unknown phone_number_id (${waPhoneId}) or wabaId (${wabaId}) - rejected`);
+        return res.status(403).json({
+          error: 'Invalid tenant',
+          details: 'Unknown phone_number_id or wabaId'
+        });
+      }
     }
 
     const tenant = config.tenant;

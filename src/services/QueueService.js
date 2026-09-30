@@ -1,7 +1,19 @@
 const logger = require('../utils/logger');
-const prisma =
-const './database');
+const prisma = require('./database');
 const socketService = require('./socket');
+
+function getParsedFlowState(flowState) {
+  if (!flowState) return {};
+  if (typeof flowState === 'object') return flowState;
+  if (typeof flowState === 'string') {
+    try {
+      return JSON.parse(flowState);
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
 
 class QueueService {
   // Called when an agent comes ONLINE or finishes a chat
@@ -69,7 +81,10 @@ class QueueService {
     let skillId = null;
     if (skillName) {
       const skill = await prisma.skill.findFirst({
-        where: { tenantId_name: { tenantId, name: skillName } }
+        where: {
+          tenantId,
+          name: { equals: skillName, mode: 'insensitive' }
+        }
       });
 
       if (skill) {
@@ -104,14 +119,18 @@ class QueueService {
       where: { id: conversation.id },
       data: {
         status: 'ASSIGNED',
-        assignedToId: agent.id
+        assignedToId: agent.id,
+        flowState: conversation.flowState ? {
+          ...getParsedFlowState(conversation.flowState),
+          waitingForBusiness: false
+        } : null
       }
     });
 
     // SECURITY: Verify the conversation after update
     if (updated.tenantId !== conversation.tenantId) {
       logger.error(
-        `🔍 [QueueService] SECURITY: Conversation tenant mismatch after update`
+        '🔍 [QueueService] SECURITY: Conversation tenant mismatch after update'
       );
     }
 
